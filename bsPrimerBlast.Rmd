@@ -1,0 +1,52 @@
+#blastn \
+#  -db /export/databases/blast/nt \
+#  -query testInputs/blasto.fasta \
+#  -task "megablast" \
+#  -evalue 30000 \
+#  -word_size 7 \
+#  -max_hsps 100 \
+#  -max_target_seqs 50000 \
+#  -num_threads 30 \
+#  -reward 1 \
+#  -penalty -1 \
+#  -gapopen 2 \
+#  -gapextend 1 \
+#  -outfmt "7 qseqid sgi evalue length qlen sstart send slen score sscinames scomnames qseq sseq" \
+#  -ungapped \
+#  > testOutUngapped.txt &
+
+
+#blastn \
+#  -db /export/databases/blast/nt \
+#  -query testInputs/blasto.fasta \
+#  -task "megablast" \
+#  -evalue 30000 \
+#  -word_size 7 \
+#  -max_hsps 100 \
+#  -max_target_seqs 50000 \
+#  -num_threads 30 \
+#  -reward 1 \
+#  -penalty -1 \
+#  -gapopen 2 \
+#  -gapextend 1 \
+#  -outfmt "7 qseqid sgi evalue length qlen sstart send slen score sscinames scomnames qseq sseq" \
+#  > testOutGapped.txt
+
+  
+blastn \
+  -db /export/databases/blast/nt \
+  -query testInputs/blasto.fasta \
+  -task "blastn" \
+  -evalue 30000 \
+  -word_size 7 \
+  -max_hsps 100 \
+  -max_target_seqs 50000 \
+  -num_threads 30 \
+  -reward 1 \
+  -penalty -1 \
+  -gapopen 2 \
+  -gapextend 1 \
+  -outfmt "7 qseqid sgi evalue length qlen sstart send slen score bitscore sscinames scomnames qseq sseq sstrand" \
+  -ungapped \
+  -sum_stats true \
+  > testOutUngappedBlastn.txt
