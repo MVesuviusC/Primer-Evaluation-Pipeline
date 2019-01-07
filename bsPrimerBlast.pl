@@ -90,7 +90,6 @@ while (my $input = <PRIMERINPUTFILE>) {
         my $i = 1;
         for my $seq1 (@primerFArray) {
             for my $seq2 (@primerRArray) {
-                #print SEQSOUT ">", $primerName, "_", $i, "\n", $seq1, "N" x 20, revComp($seq2), "\n";
                 print SEQSOUT ">", $primerName, "\n", $seq1, "N" x 20, revComp($seq2), "\n";
                 $i++;
             }
@@ -123,14 +122,14 @@ my $blastCmd =
     "-sum_stats true " .
     "| " . "perl blastProcessing.pl --input - --maxAmpLen $maxAmpLen";
 
-# maybe call a separate perl script to process the blast data as it comes in 
+# maybe call a separate function to process the blast data as it comes in 
 # instead of holding it all in memory... 
 # need to get back primerName, gi, taxid, sscinames, scomnames, qseq, sseq, 
 my $blastResults = `$blastCmd`;
 
 print $blastResults;
 
-#system("rm $tempName" . ".txt ");
+system("rm $tempName" . ".txt ");
 
 ######################
 ### Subfunctions
@@ -171,7 +170,7 @@ sub getNewPrimerVersions {
             }
         }
     }
-    return @tempArray
+    return @tempArray;
 }
 
 sub revComp{
