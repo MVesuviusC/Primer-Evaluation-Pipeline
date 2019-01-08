@@ -58,6 +58,8 @@ my %degeneratehash = ( #hash of arrays - degenerate bases with matching bases
                        N =>["A","C","G","T"]
                        );
 
+my $lastSgi = "";
+my $lastLine = "";
 
 ##############################
 # Code
@@ -119,15 +121,14 @@ my $blastCmd =
     "-gapextend 1 " .
     "-outfmt \"6 qseqid sgi qlen qstart qend sstart send slen sstrand sscinames scomnames qseq sseq\" " .
     "-ungapped " .
-    "-sum_stats true " .
-    "| " . "perl blastProcessing.pl --input - --maxAmpLen $maxAmpLen";
+    "-sum_stats true ";
 
-# maybe call a separate function to process the blast data as it comes in 
-# instead of holding it all in memory... 
-# need to get back primerName, gi, taxid, sscinames, scomnames, qseq, sseq, 
-my $blastResults = `$blastCmd`;
+open BLASTRESULTS, "-|", $blastCmd or die "damn\n";
 
-print $blastResults;
+while(my $input = <BLASTRESULTS>) {
+    chomp $input;
+    parseBlast($input);
+}
 
 system("rm $tempName" . ".txt ");
 
@@ -135,7 +136,7 @@ system("rm $tempName" . ".txt ");
 ### Subfunctions
 
 sub addDegeneratePrimer {
-    my $primer = $_[0];
+    my $primer = shift;
     my @primerArray = ($primer); #make an array containing the degenerate primer
     my @tempArray = (); #make a temporary array to hold the new versions of the primers
     my $test = 1;
@@ -178,6 +179,59 @@ sub revComp{
     $seq =~ tr/ACGTacgt/TGCAtgca/;
     $seq = reverse ($seq);
     return $seq;
+}
+
+sub parseBlast {
+    my $blastData = shift;
+    my ($qseqid, $sgi, $qlen, $qstart, $qend, $sstart, $send, $slen,
+        $sstrand, $sscinames, $scomnames, $qseq, $sseq)
+            = split "\t", $blastData;
+
+    if($sgi eq $lastSgi) {
+        my ($lastQseqid, $lastSgi, $lastQlen, $lastQstart, $lastQend,
+            $lastSstart, $lastSend, $lastSlen, $lastSstrand, $lastSscinames,
+            $lastScomnames, $lastQseq, $lastSseq)
+                = split "\t", $lastLine;
+
+        my @hitPositions = sort { $a <=> $b } ($sstart, $send, $lastSstart, $lastSend);
+
+        if($sstrand eq $lastSstrand && ($hitPositions[3] - $hitPositions[0] < $maxAmpLen)) {
+            # count primer mismatches
+            my $lastMismatchCount = mismatchCounter($lastQseq, $lastSseq, $lastQstart);
+            my $mismatchCount = mismatchCounter($qseq, $sseq, $qstart);
+
+            print join("\t", $qseqid, $sgi, $sscinames, $scomnames, $qseq, $sseq,
+                $lastQseq, $lastSseq, $hitPositions[3] - $hitPositions[0],
+                $mismatchCount, $lastMismatchCount), "\n";
+        }
+    }
+    $lastLine = $blastData;
+    $lastSgi = $sgi;
+}
+
+
+sub mismatchCounter {
+    my $seq1 = $_[0];
+    my $seq2 = $_[1];
+    my $seqPos = $_[2];
+
+    my $mismatches = 0;
+
+    for(my $i = 0; $i < length($seq1); $i++) {
+        my $qBase = substr($seq1, $i, 1);
+        my $sBase = substr($seq2, $i, 1);
+        if($qBase ne $sBase) {
+           $mismatches++;
+        }
+    }
+
+    if($seqPos < 20) {
+        $mismatches = "for:" . $mismatches;
+    } else {
+        $mismatches = "rev:" . $mismatches;
+    }
+
+    return $mismatches;
 }
 
 
