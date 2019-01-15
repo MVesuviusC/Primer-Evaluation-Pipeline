@@ -290,6 +290,8 @@ sub mismatchCounter {
             = split "\t", $blastData;
 
     my $mismatches = 0;
+    my $mismatch5Prime = 0;
+    my $mismatch3Prime = 0;
     #my $mismatchLocs; Will have to figure out how best to implement this later.... 
     
     # Count the mismatches in the aligned portion of the primer
@@ -308,9 +310,7 @@ sub mismatchCounter {
     if($qstart < 20) { # query is the forward primer
         my $primerShouldStart = 1;
         my $primerShouldEnd = length(@{ $primerHash{$qseqid} }[0]);
-        #print STDERR $primerShouldStart, "\t", $primerShouldEnd, "\t", $qstart, "\t", $qend, "\n", $blastData, "\n";
         if($qstart != $primerShouldStart || $qend != $primerShouldEnd) {
-          #print STDERR "too short\n";
           my $primerSeq = @{ $primerHash{$qseqid} }[0];
           $mismatches += addUnalignedMismatches($blastData, $primerSeq, $primerShouldStart, $primerShouldEnd); #, $mismatchLocs);
         }
@@ -341,6 +341,7 @@ sub addUnalignedMismatches {
             = split "\t", $blastData;
 
     my $mismatchCount = 0;
+    my $mismatch3PrimeCount = 0;
     
     #Check 5' end of primer
     if($qstart == ($primerShouldStart + 1)) { # only first base is a mismatch
