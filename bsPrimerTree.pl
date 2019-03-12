@@ -42,6 +42,7 @@ my $blastDb;
 my $maxSeqPerSp = "inf";
 my $plotPtSz = 4;
 my $plotFtSz = 6;
+my $maxTaxaToPlot = 1000;
 
 # i = integer, s = string
 GetOptions ("verbose"             => \$verbose,
@@ -53,7 +54,7 @@ GetOptions ("verbose"             => \$verbose,
 	    "maxSeqsPerSpecies=i" => \$maxSeqPerSp,
 	    "plotPointSize=i"     => \$plotPtSz,
 	    "plotFontSize=i"      => \$plotFtSz
-            
+	    "maxTaxaToPlot=i"     => \$maxTaxaToPlot            
       )
  or pod2usage(0) && exit;
 
@@ -95,6 +96,8 @@ if($verbose) {
 ### to get the sequences using blastdbcmd
 if($verbose) {
     print STDERR "Parsing bsPrimerBlast.pl input and preparing files for analysis.\n";
+    my @time = localtime(time);
+    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
 }
 
 open my $blastDbInputFile, ">", $outDir . "seqsToGet.txt";
@@ -139,6 +142,8 @@ close $blastDbInputFile;
 ###  get sequence for each hit
 if($verbose) {
     print STDERR "Getting amplicon sequence information using blastdbcmd.\n";
+    my @time = localtime(time);
+    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
 }
 
 my $blastDBCmdCmd = "blastdbcmd " . 
@@ -166,6 +171,8 @@ $/ = "\n";
 ### get taxa info for each hit
 if($verbose) {
     print STDERR "Getting taxonomic information using getTaxa.pl.\n";
+    my @time = localtime(time);
+    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
 }
 
 
@@ -188,6 +195,8 @@ my @taxaHeaderArray = split "\t", $taxaHeader;
 ### Combine fasta sequences and taxa info to write out new fasta
 if($verbose) {
     print STDERR "Combining taxonomic information with fasta sequences.\n";
+    my @time = localtime(time);
+    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
 }
 
 
@@ -222,6 +231,8 @@ while(my $input = <$getTaxaResponse>) {
 ### Align reads
 if($verbose) {
     print STDERR "Aligning reads with Mafft.\n";
+    my @time = localtime(time);
+    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
 }
 
 my $mafftCmd = "mafft --quiet --auto --adjustdirectionaccurately " . 
@@ -241,6 +252,8 @@ system($mafftCmd);
 
 if($verbose) {
     print STDERR "Making tree with Mega.\n";
+    my @time = localtime(time);
+    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
 }
 
 # Add number of threads to mao file
@@ -263,6 +276,8 @@ system($megaCmd);
 if($verbose) {
     print STDERR "Making Dendroscope command files and running Dendroscope\n";
     print STDERR "Dendroscope may open and do random stuff. Do not close it or interact with the window or the fabric of time will come unraveled\n";
+    my @time = localtime(time);
+    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
 }
 
 for my $taxaLevel (keys %taxNamesHash) {
@@ -290,6 +305,7 @@ for my $taxaLevel (keys %taxNamesHash) {
     
     my @taxaList = keys %{ $taxNamesHash{$taxaLevel} }; 
 
+
     my $numberOfNames = scalar(@taxaList);
     my $colorSteps = int($numberOfNames ** (1/3)) + 1;
     my $colMaxVal = 255;
@@ -313,16 +329,18 @@ for my $taxaLevel (keys %taxNamesHash) {
     }
 
     print $dendroInstFile $dendroHeader;
-    for my $taxName (@taxaList) {
-	# should I keep only 10% or so of the labels?
-	my $colToUse = shift @colors;
-
-	print $dendroInstFile "find searchtext=\'" . $taxName, "\';\n";
-	print $dendroInstFile "set color=" . $colToUse . ";\n";
-	print $dendroInstFile "set fillcolor=" . $colToUse . ";\n";
-	print $dendroInstFile "set labelcolor=" . $colToUse . ";\n";
-	print $dendroInstFile "deselect all;\n";
-    } 
+    if($numberOfNames < $maxTaxaToPlot) {
+	for my $taxName (@taxaList) {
+	    # should I keep only 10% or so of the labels?
+	    my $colToUse = shift @colors;
+	    
+	    print $dendroInstFile "find searchtext=\'" . $taxName, "\';\n";
+	    print $dendroInstFile "set color=" . $colToUse . ";\n";
+	    print $dendroInstFile "set fillcolor=" . $colToUse . ";\n";
+	    print $dendroInstFile "set labelcolor=" . $colToUse . ";\n";
+	    print $dendroInstFile "deselect all;\n";
+	} 
+    }
 
 
     print $dendroInstFile $dendroTail;
@@ -340,6 +358,8 @@ for my $taxaLevel (keys %taxNamesHash) {
 
 if($verbose) {
     print STDERR "Done!!!!\n";
+    my @time = localtime(time);
+    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
 }
 
 ##############################
