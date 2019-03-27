@@ -21,6 +21,8 @@ use Pod::Usage;
 my $verbose;
 my $help;
 my $primerInput;
+my $forward;
+my $reverse;
 my $blastDb;
 my $processors;
 my $tempName;
@@ -37,6 +39,8 @@ my $debug;
 GetOptions ("verbose"               => \$verbose,
             "help"                  => \$help,
             "primerInput=s"         => \$primerInput,
+	    "forward=s"             => \$forward,
+	    "reverse=s"             => \$reverse,
             "blastDb=s"             => \$blastDb,
             "processors=i"          => \$processors,
             "tempName=s"            => \$tempName,
@@ -126,6 +130,8 @@ while (my $input = <PRIMERINPUTFILE>) {
     #### Need to build in check to be sure format is right and force uppercase
     my ($primerName, $primerF, $primerR) = split "\t", $input;
     
+######### Make this part into a subfunction so I can use either the primer file or --forward/--reverse arguments as inputs
+
     # Make up hash to use for parsing blast output
     if(exists($primerHash{$primerName})) {
         die "Primer sets must have unique names\n";

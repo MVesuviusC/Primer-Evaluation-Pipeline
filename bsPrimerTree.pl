@@ -40,9 +40,9 @@ my $inFile;
 my $outDir;
 my $blastDb;
 my $maxSeqPerSp = "inf";
-my $plotPtSz = 4;
-my $plotFtSz = 6;
-my $maxTaxaToPlot = 1000;
+my $plotPtSz = 12;
+my $plotFtSz = 12;
+my $minTaxaToPlot = 20;
 
 # i = integer, s = string
 GetOptions ("verbose"             => \$verbose,
@@ -53,8 +53,8 @@ GetOptions ("verbose"             => \$verbose,
 	    "blastDb=s"           => \$blastDb,
 	    "maxSeqsPerSpecies=i" => \$maxSeqPerSp,
 	    "plotPointSize=i"     => \$plotPtSz,
-	    "plotFontSize=i"      => \$plotFtSz
-	    "maxTaxaToPlot=i"     => \$maxTaxaToPlot            
+	    "plotFontSize=i"      => \$plotFtSz,
+	    "maxTaxaToPlot=i"     => \$minTaxaToPlot            
       )
  or pod2usage(0) && exit;
 
@@ -90,14 +90,13 @@ if($verbose) {
     print STDERR "Output directory: ", $outDir, "\n\n";
 }
 
-
 ##############################
 ### Read in bsPrimerBlast file and write out files for getTaxa and to
 ### to get the sequences using blastdbcmd
 if($verbose) {
     print STDERR "Parsing bsPrimerBlast.pl input and preparing files for analysis.\n";
     my @time = localtime(time);
-    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
+    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
 open my $blastDbInputFile, ">", $outDir . "seqsToGet.txt";
@@ -143,7 +142,7 @@ close $blastDbInputFile;
 if($verbose) {
     print STDERR "Getting amplicon sequence information using blastdbcmd.\n";
     my @time = localtime(time);
-    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
+    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
 my $blastDBCmdCmd = "blastdbcmd " . 
@@ -172,7 +171,7 @@ $/ = "\n";
 if($verbose) {
     print STDERR "Getting taxonomic information using getTaxa.pl.\n";
     my @time = localtime(time);
-    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
+    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
 
@@ -196,7 +195,7 @@ my @taxaHeaderArray = split "\t", $taxaHeader;
 if($verbose) {
     print STDERR "Combining taxonomic information with fasta sequences.\n";
     my @time = localtime(time);
-    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
+    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
 
@@ -204,6 +203,10 @@ open my $fastaWithTaxaFile, ">", $outDir . "seqsWithTaxa.fasta";
 
 while(my $input = <$getTaxaResponse>) {
     chomp $input;
+
+    #fix taxa info to get rid of illegal characters - :;,()[]'"
+    $input =~ s/[:\;\,\(\)\[\]\'\"]//g;
+
     my @taxonomyArray = split "\t", $input;
 
     my $newHeader = ">";
@@ -215,7 +218,7 @@ while(my $input = <$getTaxaResponse>) {
     my $seqCount = 1;
     for my $seq (keys %{ $fastaHash{$taxonomyArray[0]} }) {
 	if($seqCount < $maxSeqPerSp) {
-	    print $fastaWithTaxaFile $newHeader, "\n", $seq, "\n";
+	    print $fastaWithTaxaFile $newHeader, "_$seqCount\n", $seq, "\n";
 	}
 	$seqCount++;
     }
@@ -226,13 +229,22 @@ while(my $input = <$getTaxaResponse>) {
 
 ######### I should print out a log of the number of taxa within each taxonomic level, or maybe just a table of all taxa?
 
+open my $taxaSummaryFile, ">", $outDir . "taxaSummary.txt";
+print $taxaSummaryFile "Level\tName\tCount\n";
+
+for my $level ("k", "p", "c", "o", "f", "g", "s") {
+    for my $taxName (keys %{ $taxNamesHash{$level} } ) {
+	print $taxaSummaryFile $level, "\t", $taxName, "\t", $taxNamesHash{$level}{$taxName}, "\n";
+    }
+}
+
 
 ########################
 ### Align reads
 if($verbose) {
     print STDERR "Aligning reads with Mafft.\n";
     my @time = localtime(time);
-    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
+    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
 my $mafftCmd = "mafft --quiet --auto --adjustdirectionaccurately " . 
@@ -248,27 +260,21 @@ system($mafftCmd);
 
 
 #######################
-### Make tree with mega_cc
+### Make tree with FastTree
 
 if($verbose) {
-    print STDERR "Making tree with Mega.\n";
+    print STDERR "Making tree with FastTree.\n";
     my @time = localtime(time);
-    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
+    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
-# Add number of threads to mao file
-my $maoSwitchCmd = "perl -pe \'s/@/" . $threads . "/\' megaCmdsStub.mao > megaCmds.mao";
-system($maoSwitchCmd);
-
-my $megaCmd = "megacc -s -a megaCmds.mao -d " . $outDir . "seqsWithTaxaAligned.fasta -o " . $outDir . "tree.nwk";
+my $treeCmd = "FastTree -quote -quiet -nt " . $outDir . "seqsWithTaxaAligned.fasta > " . $outDir . "tree.nwk";
 
 if($verbose) {
-    $megaCmd =~ s/-s //;
+    $treeCmd =~ s/-quiet //;
 }
 
-###### Check if the tree.nwk file already exists, and if it does, delete it to avoid mega screwing up via tree(2).nwk
-
-system($megaCmd);
+system($treeCmd);
 
 
 #######################
@@ -277,25 +283,30 @@ if($verbose) {
     print STDERR "Making Dendroscope command files and running Dendroscope\n";
     print STDERR "Dendroscope may open and do random stuff. Do not close it or interact with the window or the fabric of time will come unraveled\n";
     my @time = localtime(time);
-    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
+    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
 for my $taxaLevel (keys %taxNamesHash) {
     my $dendroHeader = join("\n", 
 			    "open file=" . $outDir . "tree.nwk" . ";",
-			    "set window width=2000 height=2000;",
+			    "set window width=3000 height=3000;", # Have to set this to a high value to avoid collapsed branches :-(
 			    "go tree=1;", 
-			    "set drawer=RadialPhylogram\;",
-			    "replace searchtext=^R replacetext=_ all=true regex=true;",
+			    "show nodelabels=false;",
+			    "show edgelabels=false;",
+			    "set drawer=RadialPhylogram;",
+			    "set scale=1000;",
+			    "deselect all;",
+			    #"replace searchtext=^R replacetext=_ all=true regex=true;",
+			    "replace searchtext=_\\d+\$ replacetext=_ all=true regex=true;",
 			    "select nodes=leaves;",
 			    "set nodeshape=oval;" ,
 			    "set nodesize=" . $plotPtSz . ";" ,
 			    "set fontsize=" . $plotFtSz . ";") . "\n";
     
     my $dendroTail = join("\n", 
-			  "deselect all;",
 			  "set radiallabels=true;",
 			  "show scalebar=true;",
+			  "deselect all;",
 			  "exportimage file=\'" . $outDir . "treePlot_" . $taxaLevel . ".svg\' textasshapes=false format=SVG replace=true;",
 			  "quit;") . "\n";
 
@@ -314,27 +325,29 @@ for my $taxaLevel (keys %taxNamesHash) {
 
     #modify dendroHeader to cut everything except the target taxa level
     $dendroHeader .= 
-	"replace searchtext=[Rs].*" . $taxaLevel . "- replacetext=- all=true regex=true;\n" .
-	"replace searchtext=:.* replacetext=- all=true regex=true;\n";
+	"replace searchtext=[Rs].*" . $taxaLevel . "- replacetext=---------- all=true regex=true;\n" .
+	"replace searchtext=:.* replacetext=------------ all=true regex=true;\n";
 
     # loop through to make all combos
-    for(my $i = 0; $i < 255; $i += $stepSize){
-	for(my $j= 0; $j < 255; $j += $stepSize    ) {
-	    for(my $k= 0; $k < 255; $k += $stepSize     ){
-		if($i != 0 || $j != 0 || $k != 0) { # don't want pure white
+    for(my $i = 255; $i > 0; $i -= $stepSize){
+	for(my $j= 255; $j > 0; $j -= $stepSize    ) {
+	    for(my $k= 255; $k > 0; $k -= $stepSize     ){
+		if($i != 255 || $j != 255 || $k != 255) { # don't want white
 		    push @colors, $i . " " . $j . " " . $k;
 		}
 	    }
-	}
+ 	}
     }
 
     print $dendroInstFile $dendroHeader;
-    if($numberOfNames < $maxTaxaToPlot) {
-	for my $taxName (@taxaList) {
+
+    for my $taxName (@taxaList) {
+	if($taxNamesHash{$taxaLevel}{$taxName} > $minTaxaToPlot) {
 	    # should I keep only 10% or so of the labels?
 	    my $colToUse = shift @colors;
-	    
+
 	    print $dendroInstFile "find searchtext=\'" . $taxName, "\';\n";
+	    print $dendroInstFile "show nodelabels=true;";
 	    print $dendroInstFile "set color=" . $colToUse . ";\n";
 	    print $dendroInstFile "set fillcolor=" . $colToUse . ";\n";
 	    print $dendroInstFile "set labelcolor=" . $colToUse . ";\n";
@@ -346,9 +359,17 @@ for my $taxaLevel (keys %taxNamesHash) {
     print $dendroInstFile $dendroTail;
     close $dendroInstFile;
     my $dendroscopeCmd = "Dendroscope -g -c " . $outDir . "dendroInstructionFile_" . $taxaLevel . ".txt";
-    system($dendroscopeCmd);
-    my $imgConvertCmd = "convert -density 300 " . $outDir . "treePlot_" . $taxaLevel . ".svg " . $outDir . "treePlot_" . $taxaLevel . ".jpg";
-    system($imgConvertCmd);
+    if($verbose) {
+	print STDERR "starting Dendroscope for $taxaLevel\n";
+    }
+    my $response = `$dendroscopeCmd`; 
+	system($dendroscopeCmd);
+    if($verbose) {
+	print STDERR "Done with Dendroscope\n";
+    }
+    # Uncomment when a working version of ImageMagick is available. Or don't. Whatever.
+    #my $imgConvertCmd = "convert -density 300 " . $outDir . "treePlot_" . $taxaLevel . ".svg " . $outDir . "treePlot_" . $taxaLevel . ".jpg";
+    #system($imgConvertCmd);
 }
 
 
@@ -359,7 +380,7 @@ for my $taxaLevel (keys %taxNamesHash) {
 if($verbose) {
     print STDERR "Done!!!!\n";
     my @time = localtime(time);
-    print STDERR $time[2] . ":" . $time[1] . ":" . $time[0], "\n";
+    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
 ##############################

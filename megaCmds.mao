@@ -30,6 +30,6 @@ Data Subset to Use                 = ====================
 Gaps/Missing Data Treatment        = Pairwise deletion                 
 Site Coverage Cutoff (%)           = Not Applicable                    
 System Resource Usage              = ====================              
-Number of Threads                  = 40                                
+Number of Threads                  = 8                                
 Has Time Limit                     = False                             
 Maximum Execution Time             = -1                                
