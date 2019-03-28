@@ -3,7 +3,6 @@ use warnings;
 use strict;
 use Getopt::Long;
 use Pod::Usage;
-
 use DBI;
 
 
@@ -39,6 +38,7 @@ my $threads = 1;
 my $inFile;
 my $outDir;
 my $blastDb;
+my $taxDb;
 my $maxSeqPerSp = "inf";
 my $plotPtSz = 12;
 my $plotFtSz = 12;
@@ -51,6 +51,7 @@ GetOptions ("verbose"             => \$verbose,
 	    "inFile=s"            => \$inFile,
 	    "outDir=s"            => \$outDir,
 	    "blastDb=s"           => \$blastDb,
+	    "taxDb=s"             => \$taxDb,
 	    "maxSeqsPerSpecies=i" => \$maxSeqPerSp,
 	    "plotPointSize=i"     => \$plotPtSz,
 	    "plotFontSize=i"      => \$plotFtSz,
@@ -64,9 +65,10 @@ pod2usage(1) && exit if ($help);
 ##############################
 # Global variables
 ##############################
-my %taxidHash;
+#my %taxidHash;
 my %taxNamesHash;
-my %fastaHash;
+#my %fastaHash;
+my %speciesSeqCountHash;
 
 ##############################
 # Code
@@ -76,7 +78,7 @@ if(-w "." eq "") { # check for write permissions
       print STDERR "No write permissions to this directory!\n\n";
       die;
 }
-
+######### Put other input checks here ##########3
 if($outDir eq "") {
     print STDERR "please provide an output directory\n\n";
     die;
@@ -125,11 +127,6 @@ while (my $input = <$inputFH>){
 	= split "\t", $input;
 
     print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
-    
-    my @taxa = split ";", $sTaxids;
-    for(@taxa) {
-	$taxidHash{$_} = 1;
-    }
 }
 
 close $inputFH;
@@ -145,99 +142,109 @@ if($verbose) {
     print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
+# connect to taxonomyDb created using makeTaxonomyDb.pl
+my $dsn      = "dbi:SQLite:dbname=$taxDb";
+my $user     = "";
+my $password = "";
+my $dbh = DBI->connect($dsn, $user, $password, {
+   PrintError       => 0,
+   RaiseError       => 1,
+   AutoCommit       => 1,
+});
+
+
+my $query = 'SELECT species, genus, family, "order", 
+		class, phylum, kingdom, superkingdom FROM 
+		taxonomy WHERE tax_id == ?';
+my $sth = $dbh->prepare($query);
+
 my $blastDBCmdCmd = "blastdbcmd " . 
     "-db " . $blastDb . 
     " -entry_batch " . $outDir . "seqsToGet.txt " . 
     "-outfmt \">\%T\@\%s\" " .
-    "| perl -pe \'s/\@/\n/\' "; # .
-#                        "> " . $outDir . "seqs.fasta";
-    
-#                        system($blastDBCmdCmd); 
+    "| perl -pe \'s/\@/\n/\' "; 
+
 $/ = "\n>";
+open my $fastaWithTaxaFile, ">", $outDir . "seqsWithTaxa.fasta";
 open my $blastDbCmdResponse, "-|", $blastDBCmdCmd or die "blastdbcmd query failed\n";
 while(my $blastInput = <$blastDbCmdResponse>) {
-   chomp $blastInput;
+    chomp $blastInput;
     $blastInput =~ s/^>//;
     my ($header, $seq) = split "\n", $blastInput;
-    $fastaHash{$header}{$seq} = 1;
+    
+    $sth->execute($header);
+    
+    my ($species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus);
+
+    while(my $row = $sth->fetchrow_hashref){
+	$species      = "$row->{species}";
+	$genus        = "$row->{genus}";
+	$family       = "$row->{family}";
+	$order        = "$row->{order}";
+	$class        = "$row->{class}";
+	$phylum       = "$row->{phylum}";
+	$kingdom      = "$row->{kingdom}";
+	$superkingdom = "$row->{superkingdom}";
+    }
+    if(defined($species)) {
+	$speciesSeqCountHash{$species}++;
+	
+	my $newHeader = ">"   . # header with taxa info and unique number to make alignment program happy
+			"s-"  . $species . ":" .
+			"sk-" . $superkingdom . ":" .
+			"k-"  . $kingdom . ":" .
+			"p-"  . $phylum . ":" .
+			"c-"  . $class . ":" .
+			"o-"  . $order . ":" .
+			"f-"  . $family . ":" .
+			"g-"  . $genus . ":" . 
+			"_" . $speciesSeqCountHash{$species};
+			
+	# print it out if I haven't seen too many of that species
+	if($speciesSeqCountHash{$species} < $maxSeqPerSp) {
+	    print $fastaWithTaxaFile $newHeader, "\n", $seq, "\n";
+	}
+	
+	# record how many of each taxa I've seen to print out later
+	$taxNamesHash{species}{$species}++;
+	$taxNamesHash{genus}{$genus}++;
+	$taxNamesHash{family}{$family}++;
+	$taxNamesHash{order}{$order}++;
+	$taxNamesHash{class}{$class}++;
+	$taxNamesHash{phylum}{$phylum}++;
+	$taxNamesHash{kingdom}{$kingdom}++;
+	$taxNamesHash{superkingdom}{$superkingdom}++;
+
+    } else {
+	print STDERR "Taxonomy not found for $header\n";
+	print STDERR "Make sure your blast database and taxonomy database " . 
+			"were downloaded at about the same time\n";
+    }
+
 }
 
+close $fastaWithTaxaFile;
+close $blastDbCmdResponse;
+
+$dbh->disconnect;
 
         ##### Need to keep in mind that the output fasta may  have multiple ">"s in the header
 $/ = "\n";
 
-######################
-### get taxa info for each hit
-if($verbose) {
-    print STDERR "Getting taxonomic information using getTaxa.pl.\n";
-    my @time = localtime(time);
-    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
-}
 
 
-my @taxaToGet = keys %taxidHash;
-
-open my $getTaxaInputFile, ">", $outDir . "taxaToGet.txt";
-print $getTaxaInputFile join("\n", @taxaToGet), "\n";
-
-
-my $getTaxaCmd = "perl ~/bin/getTaxa.pl --taxid " . $outDir . "taxaToGet.txt"; 
-
-open my $getTaxaResponse, "-|", $getTaxaCmd or die "getTaxa.pl query failed\n";
-
-my $taxaHeader = <$getTaxaResponse>;
-my @taxaHeaderArray = split "\t", $taxaHeader;
-@taxaHeaderArray = map(substr($_, 0, 1), @taxaHeaderArray);
-
-
-#######################
-### Combine fasta sequences and taxa info to write out new fasta
-if($verbose) {
-    print STDERR "Combining taxonomic information with fasta sequences.\n";
-    my @time = localtime(time);
-    print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
-}
-
-
-open my $fastaWithTaxaFile, ">", $outDir . "seqsWithTaxa.fasta";
-
-while(my $input = <$getTaxaResponse>) {
-    chomp $input;
-
-    #fix taxa info to get rid of illegal characters - :;,()[]'"
-    $input =~ s/[:\;\,\(\)\[\]\'\"]//g;
-
-    my @taxonomyArray = split "\t", $input;
-
-    my $newHeader = ">";
-    for(my $i = 1; $i < scalar(@taxonomyArray); $i++) {
-	$newHeader .= $taxaHeaderArray[$i] . "-" . $taxonomyArray[$i] . ":";
-	$taxNamesHash{$taxaHeaderArray[$i]}{$taxonomyArray[$i]}++;       # Make a hash of all the taxonomy names found at each level
-    }
-    
-    my $seqCount = 1;
-    for my $seq (keys %{ $fastaHash{$taxonomyArray[0]} }) {
-	if($seqCount < $maxSeqPerSp) {
-	    print $fastaWithTaxaFile $newHeader, "_$seqCount\n", $seq, "\n";
-	}
-	$seqCount++;
-    }
-}
-
-# Need to make instructions for dendroscope here using taxa info
-
-
-######### I should print out a log of the number of taxa within each taxonomic level, or maybe just a table of all taxa?
-
+########################
+### Print out a log of the number of taxa within each taxonomic level
 open my $taxaSummaryFile, ">", $outDir . "taxaSummary.txt";
 print $taxaSummaryFile "Level\tName\tCount\n";
 
-for my $level ("k", "p", "c", "o", "f", "g", "s") {
+for my $level ("subkingdom", "kingdom", "phylum", "class", "order", "family", "genus", "species") {
     for my $taxName (keys %{ $taxNamesHash{$level} } ) {
 	print $taxaSummaryFile $level, "\t", $taxName, "\t", $taxNamesHash{$level}{$taxName}, "\n";
     }
 }
 
+close $taxaSummaryFile;
 
 ########################
 ### Align reads
@@ -287,6 +294,16 @@ if($verbose) {
 }
 
 for my $taxaLevel (keys %taxNamesHash) {
+    my %taxaLevelNameHash = (
+	"species" 	=> "s",
+	"superkingdom"	=> "sk",
+	"kingdom" 	=> "k",
+	"phylum"	=> "p",
+	"class"		=> "c",
+	"order"		=> "o",
+	"family"	=> "f",
+	"genus"		=> "g");
+
     my $dendroHeader = join("\n", 
 			    "open file=" . $outDir . "tree.nwk" . ";",
 			    "set window width=3000 height=3000;", # Have to set this to a high value to avoid collapsed branches :-(
@@ -310,12 +327,9 @@ for my $taxaLevel (keys %taxNamesHash) {
 			  "exportimage file=\'" . $outDir . "treePlot_" . $taxaLevel . ".svg\' textasshapes=false format=SVG replace=true;",
 			  "quit;") . "\n";
 
-    
-
     open my $dendroInstFile, ">", $outDir . "dendroInstructionFile_" . $taxaLevel . ".txt";
     
     my @taxaList = keys %{ $taxNamesHash{$taxaLevel} }; 
-
 
     my $numberOfNames = scalar(@taxaList);
     my $colorSteps = int($numberOfNames ** (1/3)) + 1;
@@ -323,9 +337,9 @@ for my $taxaLevel (keys %taxNamesHash) {
     my $stepSize = int($colMaxVal / $colorSteps);
     my @colors;
 
-    #modify dendroHeader to cut everything except the target taxa level
+    #modify dendroHeader to cut everything except the target taxa level. - Move this to $dendroHeader declaration?
     $dendroHeader .= 
-	"replace searchtext=[Rs].*" . $taxaLevel . "- replacetext=---------- all=true regex=true;\n" .
+	"replace searchtext=[Rs].*" . $taxaLevelNameHash{$taxaLevel} . "- replacetext=---------- all=true regex=true;\n" .
 	"replace searchtext=:.* replacetext=------------ all=true regex=true;\n";
 
     # loop through to make all combos
@@ -354,7 +368,6 @@ for my $taxaLevel (keys %taxNamesHash) {
 	    print $dendroInstFile "deselect all;\n";
 	} 
     }
-
 
     print $dendroInstFile $dendroTail;
     close $dendroInstFile;
