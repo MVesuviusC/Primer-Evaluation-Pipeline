@@ -128,8 +128,10 @@ while (my $input = <PRIMERINPUTFILE>) {
     chomp $input;
     
     #### Need to build in check to be sure format is right and force uppercase
-    my ($primerName, $primerF, $primerR) = split "\t", $input;
+    my ($primerName, $primerF, $primerName2, $primerR) = split "\t", $input;
     
+    $primerName .= "_" . $primerName2;
+
 ######### Make this part into a subfunction so I can use either the primer file or --forward/--reverse arguments as inputs
 
     # Make up hash to use for parsing blast output

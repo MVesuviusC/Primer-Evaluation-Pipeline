@@ -59,8 +59,7 @@ time perl bsPrimerBlast.pl --primerInput testInputs/primerInFile16SMam.txt --bla
 
   
   
-  # need to run tests on megacc to see how long it takes to make a tree from x sequences and see what the relationship between time and number of seqs is (non-linear?)
-  
+
   # Eukaryote primers
   
   

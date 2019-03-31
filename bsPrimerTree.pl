@@ -22,6 +22,7 @@ use DBI;
 # limit taxonomically using new version of blast?
 
 # implement checks on input and successful run of each command. 
+# Maybe output counts of the number of mismatches for for/rev primers
 
 
 ##############################
@@ -67,7 +68,7 @@ pod2usage(1) && exit if ($help);
 ##############################
 #my %taxidHash;
 my %taxNamesHash;
-#my %fastaHash;
+my %mismatchHash;
 my %speciesSeqCountHash;
 
 ##############################
@@ -119,7 +120,7 @@ while (my $input = <$inputFH>){
        $primer1MismatchCount,                  # number of mismatches
        $primer1Mismatch5PrimeTip,              # number of mismatches in the 5' end
        $primer2MismatchCount,                  # number of mismatches other end
-       $primer2Mismatch5Prime,                 # number of mismatches in the 5' end, other end
+       $primer2Mismatch5PrimeTip,              # number of mismatches in the 5' end, other end
        $primer1QSeq,                           # query seq
        $primer1SSeq,                           # hit seq
        $primer2QSeq,                           # other end query seq
@@ -127,12 +128,23 @@ while (my $input = <$inputFH>){
 	= split "\t", $input;
 
     print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
+    $mismatchHash{$primer1MismatchCount . "\t" . $primer1Mismatch5PrimeTip}++; 
+    $mismatchHash{$primer2MismatchCount . "\t" . $primer2Mismatch5PrimeTip}++;
 }
 
 close $inputFH;
 close $blastDbInputFile;
 
+open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
 
+######################
+### print out mismatch file
+print $mismatchFile "TotalMismatches\tTipMismatches\tCount\n";
+
+for my $mismatchEntry (keys %mismatchHash) {
+    print $mismatchFile $mismatchEntry, "\t", $mismatchHash{$mismatchEntry}, "\n";
+}
+close $mismatchFile;
 
 ######################
 ###  get sequence for each hit
