@@ -68,6 +68,7 @@ pod2usage(1) && exit if ($help);
 ##############################
 #my %taxidHash;
 my %taxNamesHash;
+my %taxCountHash;
 my %mismatchHash;
 my %speciesSeqCountHash;
 
@@ -166,7 +167,7 @@ my $dbh = DBI->connect($dsn, $user, $password, {
 
 
 my $query = 'SELECT species, genus, family, "order", 
-		class, phylum, kingdom, superkingdom FROM 
+		class, phylum, kingdom, superkingdom, tax_name FROM 
 		taxonomy WHERE tax_id == ?';
 my $sth = $dbh->prepare($query);
 
@@ -186,7 +187,7 @@ while(my $blastInput = <$blastDbCmdResponse>) {
     
     $sth->execute($header);
     
-    my ($species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus);
+    my ($species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $tax_name);
 
     while(my $row = $sth->fetchrow_hashref){
 	$species      = "$row->{species}";
@@ -197,8 +198,12 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	$phylum       = "$row->{phylum}";
 	$kingdom      = "$row->{kingdom}";
 	$superkingdom = "$row->{superkingdom}";
+	$tax_name     = "$row->{tax_name}";
     }
     if(defined($species)) {
+	if($species eq "NA") { # some of the entries in the tax db don't have species labeled >:-|
+	    $species = $tax_name;
+	}
 	$speciesSeqCountHash{$species}++;
 	
 	my $newHeader = ">"   . # header with taxa info and unique number to make alignment program happy
@@ -218,6 +223,15 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	}
 	
 	# record how many of each taxa I've seen to print out later
+	$taxCountHash{$superkingdom . "\t" . 
+			  $kingdom . "\t" . 
+			  $phylum . "\t" . 
+			  $class . "\t" . 
+			  $order . "\t" . 
+			  $family . "\t" . 
+			  $genus . "\t" . 
+			  $species}++;
+	
 	$taxNamesHash{species}{$species}++;
 	$taxNamesHash{genus}{$genus}++;
 	$taxNamesHash{family}{$family}++;
@@ -248,13 +262,16 @@ $/ = "\n";
 ########################
 ### Print out a log of the number of taxa within each taxonomic level
 open my $taxaSummaryFile, ">", $outDir . "taxaSummary.txt";
-print $taxaSummaryFile "Level\tName\tCount\n";
+print $taxaSummaryFile "superkingdom\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\tName\tCount\n";
 
-for my $level ("subkingdom", "kingdom", "phylum", "class", "order", "family", "genus", "species") {
-    for my $taxName (keys %{ $taxNamesHash{$level} } ) {
-	print $taxaSummaryFile $level, "\t", $taxName, "\t", $taxNamesHash{$level}{$taxName}, "\n";
-    }
+#for my $level ("subkingdom", "kingdom", "phylum", "class", "order", "family", "genus", "species") {
+#    for my $taxName (keys %{ $taxNamesHash{$level} } ) {
+#	print $taxaSummaryFile $level, "\t", $taxName, "\t", $taxNamesHash{$level}{$taxName}, "\n";
+for my $taxName (keys %taxCountHash) {
+    print $taxaSummaryFile $taxName, "\t", $taxCountHash{$taxName}, "\n";
+    
 }
+#}
 
 close $taxaSummaryFile;
 
