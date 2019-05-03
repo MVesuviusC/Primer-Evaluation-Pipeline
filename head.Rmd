@@ -1,0 +1,35 @@
+---
+title: "genAndEvalParasitePrimers"
+output: html_document
+---
+
+```{r setup, cache = FALSE, include = FALSE}
+opts_chunk$set(cache = FALSE, fig.height = 10, fig.width = 20)
+```
+
+```{r loadLibraries, cache = FALSE}
+library(ggplot2)
+library(reshape2)
+library(plyr)
+library(primerTree)
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+```
+
+
+# Load in variables
+```{r variables, eval = TRUE}
+outPath <- "evalOut"
+primerFile <- "primerInputParasites.txt"
+```
+
+```{r exportBashVariables, eval = TRUE}
+Sys.setenv(outDir = outPath)
+```
+
+
+Should print out the creation date of the blast db and the taxonomy db
+
+```{r child = "body.Rmd"}
+```
+
