@@ -23,6 +23,7 @@ my $help;
 my $primerInput;
 my $forward;
 my $reverse;
+my $primerName;
 my $blastVer = "blastn";
 my $blastDb;
 my $processors;
@@ -42,6 +43,7 @@ GetOptions ("verbose"               => \$verbose,
             "primerInput=s"         => \$primerInput,
 	    "forward=s"             => \$forward,
 	    "reverse=s"             => \$reverse,
+	    "primerName=s"          => \$primerName,
 	    "blastVer=s"            => \$blastVer,
             "blastDb=s"             => \$blastDb,
             "processors=i"          => \$processors,
@@ -109,6 +111,13 @@ my %resultsHash;
 # Code
 ##############################
 
+##############################
+### Check inputs
+
+# Check if -f/-r and --primerInput are provided and error out if TRUE
+# if -f/-r, make sure --primerName is provided
+# Check if Blast db provided
+
 
 ##############################
 ### Make temp file name if not defined
@@ -120,57 +129,31 @@ if(!$tempName) {
 }
 
 ##############################
-### Stuff
-### More stuff
+### Create file of primer(s) for blastn input
 open SEQSOUT, ">", $tempName . ".txt";
 
-open PRIMERINPUTFILE, "$primerInput" or die "Could not open primer input\nWell, crap\n";
+if($forward) { # primers provided directly
+    addPrimersToHash($forward, $reverse, $primerName);
+} else { # list of primers provided through file
+    open PRIMERINPUTFILE, "$primerInput" or die "Could not open primer input\nWell, crap\n";
 
-while (my $input = <PRIMERINPUTFILE>) {
-    chomp $input;
-    
-    #### Need to build in check to be sure format is right and force uppercase
-    my ($primerName, $primerF, $primerName2, $primerR) = split "\t", $input;
-    
-    $primerName .= "_" . $primerName2;
-
-######### Make this part into a subfunction so I can use either the primer file or --forward/--reverse arguments as inputs
-
-    # Make up hash to use for parsing blast output
-    if(exists($primerHash{$primerName})) {
-        die "Primer sets must have unique names\n";
-    } else {
-        @{ $primerHash{$primerName} } = ($primerF, revComp($primerR));
+    while (my $input = <PRIMERINPUTFILE>) {
+	chomp $input;
+	
+	#### Need to build in check to be sure format is right and force uppercase
+	my ($primerNameF, $primerF, $primerNameR, $primerR) = split "\t", $input;
+	
+	$primerName = $primerNameF . "_" . $primerNameR;
+	
+	addPrimersToHash($primerF, $primerR, $primerName);
     }
-    
-    # deconvolute ambiguious bases for both primers
-    my @primerFArray = ($primerF);
-    my @primerRArray = ($primerR);
-    
-    if($primerF =~ /[WSMKRYBDHVN]/) {
-        @primerFArray = addDegeneratePrimer($primerF);
-    }
-    
-    if($primerR =~ /[WSMKRYBDHVN]/) {
-        @primerRArray = addDegeneratePrimer($primerR);
-    }
-    
-    my $i = 0;
-    for my $seq1 (@primerFArray) {
-        for my $seq2 (@primerRArray) {
-            print SEQSOUT ">", $primerName, "\n", $seq1, "N" x $nCount, revComp($seq2), "\n";
-            $i++;
-        }
-    }
-    print STDERR $i, " primer combinations for ", $primerName, "\n";
+    close PRIMERINPUTFILE; ############ need to change these to $primerInputFH style 
 }
 
-close SEQSOUT; 
+close SEQSOUT;
 
 ##############################
-### Stuff
-### More stuff
-
+### Run blastn
 if($verbose) {
     print STDERR "starting BLAST\n";
 }
@@ -264,6 +247,41 @@ print STDERR $numberOfBlastcmdCalls, " calls to blastdbcmd\n" if ($debug);
 
 ######################
 ### Subfunctions
+
+sub addPrimersToHash {
+    my $primer1 = $_[0];
+    my $primer2 = $_[1];
+    my $name = $_[2];
+
+    # Make up hash to use for parsing blast output
+    if(exists($primerHash{$name})) {
+        die "Primer sets must have unique names\n";
+    } else {
+        @{ $primerHash{$name} } = ($primer1, revComp($primer2));
+    }
+    
+    # deconvolute ambiguious bases for both primers
+    my @primerFArray = ($primer1);
+    my @primerRArray = ($primer2);
+    
+    if($primer1 =~ /[WSMKRYBDHVN]/) {
+        @primerFArray = addDegeneratePrimer($primer1);
+    }
+    
+    if($primer2 =~ /[WSMKRYBDHVN]/) {
+        @primerRArray = addDegeneratePrimer($primer2);
+    }
+    
+    my $i = 0;
+    for my $seq1 (@primerFArray) {
+        for my $seq2 (@primerRArray) {
+            print SEQSOUT ">", $name, "\n", $seq1, "N" x $nCount, revComp($seq2), "\n";
+            $i++;
+        }
+    }
+    print STDERR $i, " primer combinations for ", $name, "\n";
+
+}
 
 sub addDegeneratePrimer {
     my $primer = shift;
