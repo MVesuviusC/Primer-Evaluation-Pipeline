@@ -23,6 +23,7 @@ my $help;
 my $primerInput;
 my $forward;
 my $reverse;
+my $blastVer = "blastn";
 my $blastDb;
 my $processors;
 my $tempName;
@@ -41,6 +42,7 @@ GetOptions ("verbose"               => \$verbose,
             "primerInput=s"         => \$primerInput,
 	    "forward=s"             => \$forward,
 	    "reverse=s"             => \$reverse,
+	    "blastVer=s"            => \$blastVer,
             "blastDb=s"             => \$blastDb,
             "processors=i"          => \$processors,
             "tempName=s"            => \$tempName,
@@ -165,12 +167,16 @@ while (my $input = <PRIMERINPUTFILE>) {
 
 close SEQSOUT; 
 
+##############################
+### Stuff
+### More stuff
+
 if($verbose) {
     print STDERR "starting BLAST\n";
 }
 
 my $blastCmd =
-    "blastn " .
+    $blastVer . " " .
     "-db " . $blastDb . " " .
     "-query " . $tempName . ".txt " .
     "-task blastn " .
@@ -189,19 +195,8 @@ my $blastCmd =
 
 
 open BLASTRESULTS, "-|", $blastCmd or die "Blast query failed\n";
-###system($blastCmd);
-###open BLASTRESULTS, "testBlast.txt" or die "crap\n";
-
-#my $blastResults = `$blastCmd`;
-
-#if($verbose) {
-#    print STDERR "BLAST done\n";
-#}
 
 my $numberOfBlastcmdCalls = 0;
-
-#my @blastArray = split "\n", $blastResults;
-#for my $input(@blastArray) {
 
 while(my $input = <BLASTRESULTS>) {
     chomp $input;
