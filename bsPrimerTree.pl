@@ -8,21 +8,18 @@ use DBI;
 
 ##############################
 # By Matt Cannon
-# Date: 
-# Last modified: 
-# Title: .pl
+# Date: a while ago
+# Last modified: 6-20-19
+# Title: bsPrimerTree.pl
 # Purpose: 
 ##############################
 
 
 ##############################
 ### To do maybe
-# limit number of hits?
-
 # limit taxonomically using new version of blast?
 
 # implement checks on input and successful run of each command. 
-# Maybe output counts of the number of mismatches for for/rev primers
 
 
 ##############################
@@ -40,6 +37,7 @@ my $inFile;
 my $outDir;
 my $blastDb;
 my $taxDb;
+my $maxAlignedSeqs = "inf";
 my $maxSeqPerSp = "inf";
 my $plotPtSz = 12;
 my $plotFtSz = 12;
@@ -53,6 +51,7 @@ GetOptions ("verbose"             => \$verbose,
 	    "outDir=s"            => \$outDir,
 	    "blastDb=s"           => \$blastDb,
 	    "taxDb=s"             => \$taxDb,
+	    "maxAlignedSeqs=i"    => \$maxAlignedSeqs,
 	    "maxSeqsPerSpecies=i" => \$maxSeqPerSp,
 	    "plotPointSize=i"     => \$plotPtSz,
 	    "plotFontSize=i"      => \$plotFtSz,
@@ -66,7 +65,6 @@ pod2usage(1) && exit if ($help);
 ##############################
 # Global variables
 ##############################
-#my %taxidHash;
 my %taxNamesHash;
 my %taxCountHash;
 my %mismatchHash;
@@ -104,6 +102,7 @@ if($verbose) {
 }
 
 open my $blastDbInputFile, ">", $outDir . "seqsToGet.txt";
+open my $ampliconLenFH, ">", $outDir . "ampliconLengths.txt";
 
 open my $inputFH, "$inFile" or die "Could not open input\nWell, crap\n";
 my $header = <$inputFH>; 
@@ -129,6 +128,8 @@ while (my $input = <$inputFH>){
 	= split "\t", $input;
 
     print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
+    print $ampliconLenFH $sGi, "\t", $sAmpLen, "\n";
+
     $mismatchHash{$primer1MismatchCount . "\t" . $primer1Mismatch5PrimeTip}++; 
     $mismatchHash{$primer2MismatchCount . "\t" . $primer2Mismatch5PrimeTip}++;
 }
@@ -148,7 +149,8 @@ for my $mismatchEntry (keys %mismatchHash) {
 close $mismatchFile;
 
 ######################
-###  get sequence for each hit
+### Get sequence for each hit
+### Also get taxonomic info and put into header
 if($verbose) {
     print STDERR "Getting amplicon sequence information using blastdbcmd.\n";
     my @time = localtime(time);
@@ -176,6 +178,8 @@ my $blastDBCmdCmd = "blastdbcmd " .
     " -entry_batch " . $outDir . "seqsToGet.txt " . 
     "-outfmt \">\%T\@\%s\" " .
     "| perl -pe \'s/\@/\n/\' "; 
+
+my @printable;
 
 $/ = "\n>";
 open my $fastaWithTaxaFile, ">", $outDir . "seqsWithTaxa.fasta";
@@ -217,9 +221,9 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 			"g-"  . $genus . ":" . 
 			"_" . $speciesSeqCountHash{$species};
 			
-	# print it out if I haven't seen too many of that species
+	# put it into printable array if I haven't seen too many of that species
 	if($speciesSeqCountHash{$species} < $maxSeqPerSp) {
-	    print $fastaWithTaxaFile $newHeader, "\n", $seq, "\n";
+	    push @printable, $newHeader . "\n" . $seq;
 	}
 	
 	# record how many of each taxa I've seen to print out later
@@ -246,8 +250,22 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	print STDERR "Make sure your blast database and taxonomy database " . 
 			"were downloaded at about the same time\n";
     }
-
 }
+
+
+if($maxAlignedSeqs < scalar(@printable)) {
+    # random print
+    my $printChance = $maxAlignedSeqs / scalar(@printable);
+    for my $entry (@printable) {
+	if(rand() <= $printChance) {
+	    print $fastaWithTaxaFile $entry, "\n";
+	} 
+    }
+    # otherwise just print everything
+} else {
+    print $fastaWithTaxaFile join("\n", @printable), "\n";
+}
+
 
 close $fastaWithTaxaFile;
 close $blastDbCmdResponse;
