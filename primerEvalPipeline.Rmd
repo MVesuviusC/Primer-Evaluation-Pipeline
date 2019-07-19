@@ -1,22 +1,80 @@
 ---
-title: "body"
+title: "primerEvalPipeline"
+author: "Matt Cannon"
 output: knitrBootstrap::bootstrap_document
+params:
+  outDir: evalOut
+  primerFile: infile.txt
+  blastLoc: blastn
+  blastDb: nt
+  taxonomyDb: taxonomyDb
+  threads: 1
 ---
 
 
-imported variables:
-  outDir
-  primerF
-  primerR
-  blastDb loc
-  taxonomydb loc
-  threads
+Using parameters:
+https://bookdown.org/yihui/rmarkdown/params-knit.html
 
-```{bash mkdirs, eval = TRUE, cache = TRUE}
+rmarkdown::render("MyDocument.Rmd", params = list(
+  year = 2017,
+  region = "Asia",
+  printcode = FALSE,
+  file = "file2.csv"
+))
+
+
+# Primer evaluation
+
+Put in paragraph explaining goals and general approach here
+
+
+
+Target taxa needs to be a genus, family, order, class, phylum or kingdom (for now, I need to work on this)
+
+### Libraries
+```{r loadLibraries, cache = FALSE, eval = TRUE}
+library(knitr)
+library(rmarkdown)
+library(knitrBootstrap)
+library(gridExtra)
+library(tidyverse)
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+```
+
+## Setup
+```{r setup, cache = FALSE, include = FALSE}
+opts_chunk$set(fig.height = 10, fig.width = 20, cache = TRUE)
+```
+
+Parameters used for knitting
+```{r printParams, cache = FALSE, eval = TRUE}
+print(params)
+```
+
+### Check for requirements
+Programs
+Write permissions
+```{r checkReqs, cache = FALSE, eval = TRUE}
+# use knit_exit()
+```
+
+
+
+### Export bash variables
+```{r exportBashVariables, cache = FALSE, eval = TRUE}
+Sys.setenv(outDir = params$outDir)
+Sys.setenv(primerFile = params$primerFile)
+Sys.setenv(blastLoc = params$blastLoc)
+Sys.setenv(blastDb = params$blastDb)
+Sys.setenv(taxonomyDb = params$taxonomyDb)
+Sys.setenv(threads = params$threads)
+```
+
+### Create directories
+```{bash mkdirs, eval = TRUE}
 mkdir $outDir
-mkdir ${outDir}/bsPrimerTree
-mkdir ${outDir}/taxaRestricted
-mkdir ${outDir}/taxaRestricted/primerTreeObj
+mkdir ${outDir}
 mkdir ${outDir}/figures
 #mkdir ${outDir}/sequences
 #mkdir ${outDir}/sequences/trimmed
@@ -37,60 +95,83 @@ columns are:
 primerNameF primerF primerNameR primerR targetTaxa
 
 ```{r getPrimers, eval = TRUE}
-primerDf <- read.delim(primerFile, header = FALSE, sep = "\t")
+primerDf <- read.delim(params$primerFile, header = FALSE, sep = "\t")
+primerDf
+# check if primers are in the right format and if not knit_exit()
 ```
 
-### Run bsPrimerTree
 
-Need to create bsPrimerBlast option to provide path to proper blastn executable 
-```{bash bsPrimerTree, eval = TRUE, dependson = getPrimers}
-perl bsPrimerBlast.pl \
+## Find amplifiable species and document amplicon length and primer mismatches
+
+### Run bsPrimerBlast and bsPrimerTree
+
+Need to update bsPrimerTree to give --noPlots option
+Need to check how bsPrimerBlast is handling indels and sequence retrieval when there is an indel
+
+This outputs:
+  * ampliconLengths.txt
+  * primerMismatches.txt
+  * taxaSummary.txt
+  * seqsWithTaxa.fasta
+  * seqsWithTaxaAligned.fasta
+    * If plots were produced: 
+      * tree.nwk
+      * dendroInstructionFile_*.txt
+      * treePlot_*.svg 
+
+################### figure out how/if to pull in these perl scripts since they won't be in the folder
+#```{r, echo = F, cache = FALSE}
+#read_chunk('bsPrimerBlast.pl', labels = 'bsPrimerBlastCode')
+#```
+#```{perl bsPrimerBlastCode, eval = FALSE, cache = FALSE}
+#```
+#```{r, echo = F, cache = FALSE}
+#read_chunk('bsPrimerTree.pl', labels = 'bsPrimerTreeCode')
+#```
+#```{perl bsPrimerTreeCode, eval = FALSE, cache = FALSE}
+#```
+
+```{bash bsPrimerTree, dependson = 'getPrimers', eval = TRUE}
+bsPrimerBlast.pl \
       --primerInput ${primerFile} \
       --blastDb ${blastDb} \
-      --blastLoc /usr/local/packages/ncbi-blast+-2.7.1/bin/blastn \
+      --blastVer ${blastLoc} \
       --proc ${threads} \
       -v \
       | \
-    perl bsPrimerTree.pl \
+    bsPrimerTree.pl \
       --inFile - \
       --blastDb ${blastDb} \
       --taxDb ${taxonomyDb} \
-      --outDir ${outDir}/bsPrimerTree \
+      --outDir ${outDir} \
       --threads ${threads} \
       -v \
       --maxSeqsPerSpecies 3
 ```
 
-
-
-
-### Calculate and plot amplicon length distribution 
-```{r plotAmpLens, eval = TRUE, dependson = bsPrimerTree}
+### Plot amplicon length distribution 
+This includes all hits from all species, so there may be inflation of certain values if one or more species has tons of hits
+```{r plotAmpLens, dependson = 'bsPrimerTree', eval = TRUE}
 ampLenDf <- read.delim(paste(params$outDir, "/ampliconLengths.txt", sep = ""))
 
 png(paste(params$outDir, "/figures/ampliconLens.png", sep = ""), width = 1000, height = 1000, res = 300)
-
-ggplot(ampLenDf, aes(x = V2)) + 
-  geom_histogram(binwidth = 1) +
-  ggtitle("Amplicon Lengths") +
-  xlab("Amplicon Length (bp)") + 
-  ylab("Count")
-
+  ggplot(ampLenDf, aes(x = V2)) + 
+    geom_histogram(binwidth = 1) +
+    ggtitle("Amplicon Lengths") +
+    xlab("Amplicon Length (bp)") + 
+    ylab("Count")
 dev.off()
 ```
 
-### Plot primer mismatches
-
+### Plot primer mismatch counts
 Would like to instead plot number of mismatches for sub-taxa to show how bias might manifest
-
-```{r plotPrimerMismatch, eval = TRUE, dependson = bsPrimerTree}
+```{r plotPrimerMismatch, dependson = 'bsPrimerTree', eval = TRUE}
 primerMismatches <- read.delim(paste(params$outDir, "/primerMismatches.txt", sep = ""))
 
 primerMismatches$Primer <- gsub(":.+", "", primerMismatches$TotalMismatches)
 primerMismatches$Primer <- gsub("for", "Forward", primerMismatches$Primer)
 primerMismatches$Primer <- gsub("rev", "Reverse", primerMismatches$Primer)
 primerMismatches$TotalMismatches <- gsub(".+:", "", primerMismatches$TotalMismatches)
-
 
 P1 <- ggplot(primerMismatches, aes(x = TotalMismatches, y = Count)) + 
           geom_bar(stat = "identity") + 
@@ -107,117 +188,114 @@ P2 <- ggplot(primerMismatches, aes(x = TipMismatches, y = Count)) +
           ylab("Number of sequences")
 
 png(paste(params$outDir, "/figures/primerMismatches.png", sep = ""), width = 2000, height = 2000, res = 300)
-grid.arrange(P1, P2, ncol = 1)
+  grid.arrange(P1, P2, ncol = 1)
 dev.off()
 ```
 
 
-### Trim primers off seq?
-
+### Trim primers off sequences
+```{r, echo = F, cache = FALSE}
+read_chunk('scripts/trimFastaByPrimerLength.pl', labels = 'trimPrimersCode')
+```
+```{perl trimPrimersCode, eval = FALSE, cache = FALSE}
+```
+```{bash trimPrimerSeqs, dependson = 'bsPrimerTree', eval = TRUE}
+perl trimFastaByPrimerLength.pl \
+    --fasta ${outDir}/seqsWithTaxa.fasta \
+    --primers ${primerFile} \
+      > ${outDir}/seqsWithTaxaTrimmed.fasta
+```
 
 ### Filter unique seqs
 
 Keep unique sequences per species and blast those, need to average number of hits within a species prior to other analyses to avoid eg. human causing massive skew of the data. 
-```{r uniqueSeqs, engine = 'bash', eval = FALSE}
-for file in output/sequences/trimmed/*.fasta
-do
-  base=${file##*/}
-  base=${base%sequences.fasta}
-  perl misc/uniqueFastaBySpeciesSeq.pl \
-      --tax output/taxonomy/${base}taxonomy.txt \
-      --fasta ${file} \
-    > output/sequences/unique/${base}sequences.fasta
-done
+
+############### remove need for taxa file and change up script
+```{r, echo = F, cache = FALSE}
+read_chunk('scripts/uniqueFastaBySpeciesSeq.pl', labels = 'uniqueSeqsCode')
+```
+```{perl uniqueSeqsCode, eval = FALSE, cache = FALSE}
+```
+```{bash uniqueSeqs, dependson = 'trimPrimerSeqs', eval = TRUE}
+perl scripts/uniqueFastaBySpeciesSeq.pl \
+    --fasta ${outDir}/seqsWithTaxaTrimmed.fasta \
+      > ${outDir}/seqsWithTaxaTrimmedUnique.fasta
 ```
 
 
-## Blast sequences
-```{r blast, engine = 'bash', eval = FALSE}
-
-for file in output/sequences/unique/*sequences.fasta
-do
-  base=${file%sequences.fasta}
-
-  /usr/local/packages/ncbi-blast-2.2.31+/bin/blastn \
+## Blast amplifiable sequences
+```{bash blast, dependson = 'uniqueSeqs', eval = TRUE}
+${blastLoc} \
     -task blastn \
-    -negative_gilist misc/unculturedOrgs.gi \
-    -db /export/databases/blast/nt \
-    -query ${file} \
-    -num_threads 40 \
-    -outfmt "7 qseqid sgi evalue length qlen sstart send slen" \
+    # maybe don't use this, need to think about it -negative_gilist misc/unculturedOrgs.gi \
+    -db ${blastDb} \
+    -query ${outDir}/seqsWithTaxaTrimmedUnique.fasta \
+    -num_threads ${threads} \
+    -outfmt "7 qseqid staxids evalue length qlen sstart send slen" \
     -max_hsps 1 \
     -max_target_seqs 10000 \
-    > output/blast/${base##*/}blastResults.txt
-done
+    | gzip \
+      > ${outDir}/blastResults.txt.gz
 ```
 
 ### Get taxonomy of blast hits
 
 #### Pull hit GI number out of the BLAST results
 
-```{r getGi, engine = 'bash', eval = FALSE}
-cat output/blast/*blastResults.txt | grep -v "#" | cut -f 2,2 | perl -pe 's/gi.//' | perl -pe 's/\|.+//' | sort | uniq > output/blast/gis.txt
+############### Need to deal with multiple taxids per blast hit..... separated by ";"
+
+```{bash getGi, dependson = 'blast', eval = FALSE}
+zcat ${outDir}/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi.//' | perl -pe 's/\|.+//' | sort | uniq > ${outDir}/taxids.txt
 ```
 
 
 #### Get taxonomy information from NCBI
 
-```{r getTaxonomy, engine = 'bash', eval = FALSE}
-rm output/blast/taxa/splitInput/splitTaxa_*
-split -a 4 -d output/blast/gis.txt output/blast/taxa/splitInput/splitTaxa_
+local taxonomy database is created by makeTaxonomyDb.pl
 
-parallel -j 20 '/usr/local/packages/perl-5.22.1/bin/perl ~/SerreDLab-3/cannonm3/scripts/getTaxaV2.pl --input {} --ranks "superkingdom, kingdom, phylum, class, order, family, genus" > output/blast/taxa/splitOutput/{/}' ::: output/blast/taxa/splitInput/splitTaxa_*
-  
-head -n 1 output/blast/taxa/splitOutput/splitTaxa_0000 > output/blast/blastTaxa.txt
-cat output/blast/taxa/splitOutput/splitTaxa_* | grep -v "superkingdom" | grep -v "NotFound" >> output/blast/blastTaxa.txt
+```{bash getTaxonomy, dependson = 'getGi', eval = FALSE}
+
+
+################################### do this part
+perl getTaxaLocal.pl
+
+cat output/blast/taxa/splitOutput/splitTaxa_* | grep -v "superkingdom" | grep -v "NotFound" >> ${outDir}/blastTaxa.txt
 ```
 
 ### Use taxonomy and blast output to keep all equal top hits
 output: queryGi, orders, families, genera, species, numOrders, numFamilies, numGenera, numSpecies
 
-```{r parseTopBlastHits, engine = 'bash', eval = FALSE}
-for file in output/blast/*blastResults.txt
-do
-  base=${file%_blastResults.txt}
-  base=${base##*/}
-  perl misc/findTopBlastHitsWithTaxa.pl --blastIn ${file} --taxa output/blast/blastTaxa.txt > output/blast/topParsed/${base}_blastParsed.txt
-done
+```{r, echo = F, cache = FALSE}
+read_chunk('scripts/findTopBlastHitsWithTaxa.pl', labels = 'parseTopBlastHitsCode')
+```
+```{perl parseTopBlastHitsCode, eval = FALSE, cache = FALSE}
+```
+```{bash parseTopBlastHits, dependson = getTaxonomy, eval = FALSE}
+perl scripts/findTopBlastHitsWithTaxa.pl \
+    --blastIn ${outDir}/blastResults.txt.gz \
+    --taxa ${outDir}/blastTaxa.txt \
+    > ${outDir}/blastParsed.txt
 ```
 
 ### Count hits per rank
-Need to check if the hits have taxonomy at this rank
-```{r countNumInRank, engine = 'bash', eval = FALSE}
+--> Need to check if the hits have taxonomy at this rank
+
+
+```{bash countNumInRank, dependson = 'parseTopBlastHits', eval = FALSE}
 # family
-for file in output/blast/topParsed/*_blastParsed.txt
-do
-  base=${file%_blastParsed.txt}
-  base=${base##*/}
   grep -v "query" ${file} | cut -f 1,10 | grep -v "NA" | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > output/blast/topHitSummary/family/${base}Counts.txt
-done
-# no family info for blasto 
-rm output/blast/topHitSummary/family/Blastocystis18S_F_Blastocystis18S_RCounts.txt
 
 # genus
-for file in output/blast/topParsed/*_blastParsed.txt
-do
-  base=${file%_blastParsed.txt}
-  base=${base##*/}
   grep -v "query" ${file} | cut -f 1,11 | grep -v "NA" | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > output/blast/topHitSummary/genus/${base}Counts.txt
-done
 
 # species
-for file in output/blast/topParsed/*_blastParsed.txt
-do
-  base=${file%_blastParsed.txt}
-  base=${base##*/}
   grep -v "query" ${file} | cut -f 1,12 | grep -v "NA" | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > output/blast/topHitSummary/species/${base}Counts.txt
-done
 ```
 
 
 
 
-```{r listHitSpecies, engine = 'bash', eval = FALSE}
+```{bash listHitSpecies, dependson = 'getTaxonomy', eval = FALSE}
 
 ################
 ######### Double check field cuts
@@ -238,9 +316,17 @@ wc -l output/taxonomy/*SpeciesList.txt | perl -pe 's/^\s+//' > output/summaryTab
 
 ## Find missed hits
 banned words: sp., uncultured, unidentified, cf., isolate, symbiont
-```{r parsePotentialHits, engine = 'bash', eval = FALSE}
+```{bash parsePotentialHits, dependson = 'parseTopBlastHits', eval = FALSE}
 # Apicomplexa
-perl misc/getPotentialHits.pl --alignVar 10 --taxa output/blast/blastTaxa.txt --blast output/blast/Apicomplexa18S_365_F_Apicomplexa18S_613_R_blastResults.txt --primerF GACCTATCAGCTTTCGACGG --primerR CCCTCCAATTGWTACTCTGGR > output/blast/potentialHits/Apicomplexa18S_365_F_Apicomplexa18S_613_R_potential_hits.txt
+perl scripts/getPotentialHits.pl \
+    --alignVar 10 \
+    --taxa output/blast/blastTaxa.txt \
+    --blast output/blast/Apicomplexa18S_365_F_Apicomplexa18S_613_R_blastResults.txt \
+    
+    # change this to input primerFile
+    --primerF GACCTATCAGCTTTCGACGG \
+    --primerR CCCTCCAATTGWTACTCTGGR \
+      > output/blast/potentialHits/Apicomplexa18S_365_F_Apicomplexa18S_613_R_potential_hits.txt
 
 # Parabasalia
 perl misc/getPotentialHits.pl --alignVar 10 --taxa output/blast/blastTaxa.txt --blast output/blast/Parabasalia18S_288_F_Parabasalia18S_654_R_blastResults.txt --primerF TAGGCTATCACGGGTAACGG --primerR GCGTCCTGATTTGTTCACAG > output/blast/potentialHits/Parabasalia18S_288_F_Parabasalia18S_654_R_potential_hits.txt
@@ -255,72 +341,10 @@ wc -l output/blast/potentialHits/*_species_list.txt | perl -pe 's/^\s+//' > outp
 ```
 
 
-### Count number of mismatches between primer and template
-
-```{bash countPrimerDiffsForPaper, eval = FALSE}
-perl misc/checkPrimerMismatches.pl --primerL GACCTATCAGCTTTCGACGG --primerR CCCTCCAATTGWTACTCTGGR --fasta output/sequences/Apicomplexa18S_365_F_Apicomplexa18S_613_R_sequences.fasta > output/primerDiffs/Apicomplexa18S_365_F_Apicomplexa18S_613_R_PrimerDiffs.txt
-
-```
-
-#### Plot primer diffs
-
-```{r plotPrimerDiffsForPaper, eval = FALSE}
-diffFiles <- list.files(path = 'output/primerDiffs/', pattern = "PrimerDiffs.txt", full.names = T)
-
-pdf("output/figures/primerDiffs.pdf", width = 15, height = 8)
-for(inFile in diffFiles) {
-  baseName <- gsub(".+/", "", inFile)
-  baseName <- gsub("_PrimerDiffs.txt", "", baseName)  
-  diffCount <- read.delim(inFile, header = F)
-  colnames(diffCount) <- c("gi", "RprimerMismatches", "RprimerMatches", "LprimerMismatches", "LprimerMatches")
-  
-  taxaDf <- read.delim(paste("output/taxonomy/", baseName, "_taxonomyFixed.txt", sep = ""), header = T)
-  
-  combinedDf <- merge(diffCount, taxaDf)
-  combinedDf$count <- 1
-  combinedDf <- subset(combinedDf, RprimerMismatches < 10 & LprimerMismatches < 10)
-
-  for(taxon in c("order", "family", "genus")) {
-    if(taxon %in% colnames(combinedDf)) {
-      # print(ggplot(combinedDf, aes(x = get(taxon), y = count, fill = as.factor(RprimerMismatches))) + 
-      #     geom_bar(stat = "identity", position = "fill") +
-      #     ggtitle(baseName) +
-      #     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-      #     guides(fill = guide_legend(title = "Primer\nmismatches")) +
-      #     xlab("") +
-      #     ylab("Proportion")
-      # )
-      
-      print(ggplot(combinedDf, aes(x = get(taxon), y = as.factor(RprimerMismatches))) +
-          geom_bin2d() +
-          ggtitle(paste(baseName, taxon, "Right primer", sep = "\n")) +
-          theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-          guides(fill = guide_legend(title = "Primer\nmismatches")) +
-          xlab("") +
-          ylab("Proportion")
-      )
-
-      print(ggplot(combinedDf, aes(x = get(taxon), y = as.factor(LprimerMismatches))) +
-          geom_bin2d() +
-          ggtitle(paste(baseName, taxon, "Left primer", sep = "\n")) +
-          theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-          guides(fill = guide_legend(title = "Primer\nmismatches")) +
-          xlab("") +
-          ylab("Proportion")
-      )
-      
-      
-
-    }
-  }
-}
-dev.off()
-
-```
 
 
 
-## Make up summary table for paper
+## Make up summary table
 use:
 Percent of species on target
   output/summaryTable/OnTargetSpeciesCount_SpeciesList.txt
@@ -416,3 +440,5 @@ colnames(summaryTable) <- gsub("species", "Species", colnames(summaryTable))
 write.table(summaryTable, file = 'output/summaryTable/finalTable.txt', quote = F, sep = "\t", row.names = F, col.names = T, na = "")
 
 ```
+
+

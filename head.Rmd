@@ -1,30 +1,49 @@
 ---
-title: "genAndEvalParasitePrimers"
-output: html_document
+title: "evalParasitePrimers"
+output: knitrBootstrap::bootstrap_document
+params:
+  outDir: evalOut
+  primerFile: infile.txt
+  blastLoc: blastn
+  blastDb: nt
+  taxonomyDb: taxonomyDb
+  threads: 1
 ---
 
 ```{r setup, cache = FALSE, include = FALSE}
 opts_chunk$set(cache = FALSE, fig.height = 10, fig.width = 20)
 ```
 
-```{r loadLibraries, cache = FALSE}
+```{r loadLibraries, eval = TRUE}
 library(ggplot2)
-library(reshape2)
-library(plyr)
-library(primerTree)
+library(gridExtra)
+#library(reshape2)
+library(dplyr)
 theme_set(theme_bw())
 theme_update(plot.title = element_text(hjust = 0.5))
 ```
 
 
-# Load in variables
-```{r variables, eval = TRUE}
-outPath <- "evalOut"
-primerFile <- "primerInputParasites.txt"
-```
+Using parameters:
+https://bookdown.org/yihui/rmarkdown/params-knit.html
 
+rmarkdown::render("MyDocument.Rmd", params = list(
+  year = 2017,
+  region = "Asia",
+  printcode = FALSE,
+  file = "file2.csv"
+))
+
+
+
+# Export bash variables
 ```{r exportBashVariables, eval = TRUE}
-Sys.setenv(outDir = outPath)
+Sys.setenv(outDir = params$outDir)
+Sys.setenv(primerFile = params$primerFile)
+Sys.setenv(blastLoc = params$blastLoc)
+Sys.setenv(blastDb = params$blastDb)
+Sys.setenv(taxonomyDb = params$taxonomyDb)
+Sys.setenv(threads = params$threads)
 ```
 
 
