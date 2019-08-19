@@ -15,13 +15,14 @@ params:
 Using parameters:
 https://bookdown.org/yihui/rmarkdown/params-knit.html
 
-rmarkdown::render("MyDocument.Rmd", params = list(
-  year = 2017,
-  region = "Asia",
-  printcode = FALSE,
-  file = "file2.csv"
+# example command to run on hush
+rmarkdown::render("primerEvalPipeline.Rmd", params = list(
+  primerFile = "examplePrimerInputFile.txt",
+  blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
+  blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
+  taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
+  threads = 6
 ))
-
 
 # Primer evaluation
 
@@ -192,11 +193,7 @@ dev.off()
 
 ### Filter unique seqs
 
-Keep unique sequences per species and blast those, need to average number of hits within a species prior to other analyses to avoid eg. human causing massive skew of the data. 
-
-#############
-############### remove need for taxa file and change up script
-#############
+Keep unique sequences per species and blast those, to reduce duplicate hits within a species prior to other analyses to avoid eg. human causing massive skew of the data. 
 
 ```{r, echo = F, cache = FALSE}
 read_chunk('scripts/uniqueFastaBySpeciesSeq.pl', labels = 'uniqueSeqsCode')
@@ -214,9 +211,8 @@ perl scripts/uniqueFastaBySpeciesSeq.pl \
 ```{bash blast, dependson = 'uniqueSeqs', eval = FALSE}
 ${blastLoc} \
     -task blastn \
-    # maybe don't use this, need to think about it -negative_gilist misc/unculturedOrgs.gi \
     -db ${blastDb} \
-    -query ${outDir}/seqsWithTaxaTrimmedUnique.fasta \
+    -query ${outDir}/seqsWithTaxaUnique.fasta \
     -num_threads ${threads} \
     -outfmt "7 qseqid staxids evalue length qlen sstart send slen" \
     -max_hsps 1 \
@@ -231,7 +227,7 @@ ${blastLoc} \
 
 ############### Need to deal with multiple taxids per blast hit..... separated by ";"
 
-```{bash getGi, dependson = 'blast', eval = FALSE}
+```{bash getTaxids, dependson = 'blast', eval = FALSE}
 zcat ${outDir}/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi.//' | perl -pe 's/\|.+//' | sort | uniq > ${outDir}/taxids.txt
 ```
 
