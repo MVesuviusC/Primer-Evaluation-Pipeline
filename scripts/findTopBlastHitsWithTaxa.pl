@@ -84,19 +84,22 @@ while (my $input = <$blastFh>) {
 	# compare minEval to evalue and keep if equal or new 
 	if($score >= $maxScore) {
 	    if(exists($taxaHash{$sTaxid})) {
-		print join("\t", 
-			   $fullQueryName, 
-			   $sAcc,
-			   $sTaxid,
-			   $taxaHash{$sTaxid}{superkingdom},
-			   $taxaHash{$sTaxid}{kingdom},
-			   $taxaHash{$sTaxid}{phylum},
-			   $taxaHash{$sTaxid}{class},
-			   $taxaHash{$sTaxid}{order}, 
-			   $taxaHash{$sTaxid}{family}, 
-			   $taxaHash{$sTaxid}{genus}, 
-			   $taxaHash{$sTaxid}{species},
-		    ), "\n";
+		# Don't print any hit that has uncertain taxonomic assignment
+		if($taxaHash{$sTaxid}{species} !~ /sp\.|cf\.|isolate|uncultured|symbiont|unidentified|NA/i) {
+		    print join("\t", 
+			       $fullQueryName, 
+			       $sAcc,
+			       $sTaxid,
+			       $taxaHash{$sTaxid}{superkingdom},
+			       $taxaHash{$sTaxid}{kingdom},
+			       $taxaHash{$sTaxid}{phylum},
+			       $taxaHash{$sTaxid}{class},
+			       $taxaHash{$sTaxid}{order}, 
+			       $taxaHash{$sTaxid}{family}, 
+			       $taxaHash{$sTaxid}{genus}, 
+			       $taxaHash{$sTaxid}{species},
+			       ), "\n";
+		}
 	    }
 	    $maxScore = $score;
 	}
