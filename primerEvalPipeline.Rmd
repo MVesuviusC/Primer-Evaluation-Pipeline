@@ -77,7 +77,7 @@ Sys.setenv(threads = params$threads)
 mkdir $outDir
 mkdir ${outDir}
 mkdir ${outDir}/figures
-#mkdir ${outDir}/sequences
+mkdir ${outDir}/topHitSummary
 #mkdir ${outDir}/sequences/trimmed
 #mkdir ${outDir}/blast
 #mkdir ${outDir}/blast/topParsed
@@ -109,15 +109,16 @@ primerDf
 Need to check how bsPrimerBlast is handling indels and sequence retrieval when there is an indel
 
 This outputs:
-  * ampliconLengths.txt
-  * primerMismatches.txt
-  * taxaSummary.txt
-  * seqsWithTaxa.fasta -- This file has the portion of the sequence matching the primers removed
-  * seqsWithTaxaAligned.fasta -- This file has the portion of the sequence matching the primers removed
-    * If plots were produced: 
-      * tree.nwk
-      * dendroInstructionFile_*.txt
-      * treePlot_*.svg 
+
+* ampliconLengths.txt
+* primerMismatches.txt
+* taxaSummary.txt
+* seqsWithTaxa.fasta -- This file has the portion of the sequence matching the primers removed
+* seqsWithTaxaAligned.fasta -- This file has the portion of the sequence matching the primers removed
+* If plots were produced: 
+    + tree.nwk
+    + dendroInstructionFile_*.txt
+    + treePlot_*.svg 
 
 ################### figure out how/if to pull in these perl scripts since they won't be in the folder
 #```{r, echo = F, cache = FALSE}
@@ -192,7 +193,6 @@ dev.off()
 ```
 
 ### Filter unique seqs
-
 Keep unique sequences per species and blast those, to reduce duplicate hits within a species prior to other analyses to avoid eg. human causing massive skew of the data. 
 
 ```{r, echo = F, cache = FALSE}
@@ -208,13 +208,13 @@ perl scripts/uniqueFastaBySpeciesSeq.pl \
 
 
 ## Blast amplifiable sequences
-```{bash blast, dependson = 'uniqueSeqs', eval = FALSE}
+```{bash blast, dependson = 'uniqueSeqs', eval = TRUE}
 ${blastLoc} \
     -task blastn \
     -db ${blastDb} \
     -query ${outDir}/seqsWithTaxaUnique.fasta \
     -num_threads ${threads} \
-    -outfmt "7 qseqid staxids evalue length qlen sstart send slen" \
+    -outfmt "7 qseqid staxid score length qlen sstart send slen sacc" \
     -max_hsps 1 \
     -max_target_seqs 10000 \
     | gzip \
@@ -227,52 +227,54 @@ ${blastLoc} \
 
 ############### Need to deal with multiple taxids per blast hit..... separated by ";"
 
-```{bash getTaxids, dependson = 'blast', eval = FALSE}
-zcat ${outDir}/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi.//' | perl -pe 's/\|.+//' | sort | uniq > ${outDir}/taxids.txt
+```{bash getTaxids, dependson = 'blast', eval = TRUE}
+zcat ${outDir}/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi.//' | perl -pe 's/\|.+//' | sort | uniq > ${outDir}/taxids.txt 
 ```
 
 
 #### Get taxonomy information from NCBI
 
-local taxonomy database is created by makeTaxonomyDb.pl
+local taxonomy database is created by makeTaxonomyDb.pl. This script and getTaxaLocal.pl are available at:
+(https://github.com/MVesuviusC/getTaxa/)
 
-```{bash getTaxonomy, dependson = 'getGi', eval = FALSE}
-
-
-################################### do this part
-perl getTaxaLocal.pl
-
-cat output/blast/taxa/splitOutput/splitTaxa_* | grep -v "superkingdom" | grep -v "NotFound" >> ${outDir}/blastTaxa.txt
+```{bash getTaxonomy, dependson = 'getGi', eval = TRUE}
+getTaxaLocal.pl --dbName ${taxonomyDb} --taxids ${outDir}/taxids.txt > ${outDir}/taxaRaw.txt 
 ```
 
 ### Use taxonomy and blast output to keep all equal top hits
-output: queryGi, orders, families, genera, species, numOrders, numFamilies, numGenera, numSpecies
+output: 
 
 ```{r, echo = F, cache = FALSE}
 read_chunk('scripts/findTopBlastHitsWithTaxa.pl', labels = 'parseTopBlastHitsCode')
 ```
 ```{perl parseTopBlastHitsCode, eval = FALSE, cache = FALSE}
 ```
-```{bash parseTopBlastHits, dependson = getTaxonomy, eval = FALSE}
+```{bash parseTopBlastHits, dependson = 'getTaxonomy', eval = TRUE}
 perl scripts/findTopBlastHitsWithTaxa.pl \
     --blastIn ${outDir}/blastResults.txt.gz \
-    --taxa ${outDir}/blastTaxa.txt \
-    > ${outDir}/blastParsed.txt
+    --taxa ${outDir}/taxaRaw.txt \
+    > ${outDir}/blastParsed.txt 
 ```
 
 ### Count hits per rank
 --> Need to check if the hits have taxonomy at this rank
+need to kick out any hit where species contains "banned words" (sp., cf., isolate, uncultured......)
 
+put in perlUnique.pl
+
+maybe put this all into a perl script.... 
 
 ```{bash countNumInRank, dependson = 'parseTopBlastHits', eval = FALSE}
 # family
-  grep -v "query" ${file} | cut -f 1,10 | grep -v "NA" | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > output/blast/topHitSummary/family/${base}Counts.txt
+  grep -v "query" ${outDir}/blastParsed.txt \
+  | cut -f 1,9 | \
+  awk -F "\t" '$2 != "NA" {print $_}' | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > ${outDir}/topHitSummary/familyCounts.txt
 
 # genus
-  grep -v "query" ${file} | cut -f 1,11 | grep -v "NA" | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > output/blast/topHitSummary/genus/${base}Counts.txt
+  grep -v "query" ${outDir}/blastParsed.txt | cut -f 1,10 | awk -F "\t" '$2 != "NA" {print $_}' | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > output/blast/topHitSummary/genus/${base}Counts.txt
 
 # species
-  grep -v "query" ${file} | cut -f 1,12 | grep -v "NA" | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > output/blast/topHitSummary/species/${base}Counts.txt
+  grep -v "query" ${outDir}/blastParsed.txt | cut -f 1,11 | awk -F "\t" '$2 != "NA" {print $_}' | sort | uniq | cut -f 1,1 | sort | uniq -c | perl -pe 's/^ +//' > output/blast/topHitSummary/species/${base}Counts.txt
 ```
 
 

@@ -36,39 +36,36 @@ pod2usage(1) && exit if ($help);
 ##############################
 # Global variables
 ##############################
+my $fullQueryName;
 my %taxaHash;
-my $lastQuery = "";
-my $minEVal = 0;
+my $maxScore = 0;
 
 ##############################
 # Code
 ##############################
 
 ##############################
-### Pull in taxa info and make hash of form:
-### $taxaHash{gi}{taxaLevel or taxId} = taxon
+### Pull in taxa info and make hash
 
-open TAXA, "$taxaIn" or die "Could not open taxonomy input\n";
-my @header = split "\t", <TAXA>;
+open my $taxaFh, "$taxaIn" or die "Could not open taxonomy input\n";
+my @header = split "\t", <$taxaFh>;
 chomp @header;
-while(my $input = <TAXA>) {
+while(my $input = <$taxaFh>) {
     chomp $input;
-    $input =~ s/\n//g;
-    my @columns = split "\t", $input;
-    for(my $i = 1; $i < scalar(@columns); $i++) {
-	if($header[$i] eq "species") {
-	    $columns[$i] =~ s/.+\ssp\..*/NA/;
-	    $columns[$i] =~ s/.+\scf\.\s.+/NA/;
-	    $columns[$i] =~ s/.*isolate\s.*/NA/;
-            $columns[$i] =~ s/.*uncultured.*/NA/;
-            $columns[$i] =~ s/.*unidentified.*/NA/;
-            $columns[$i] =~ s/.*symbiont.*/NA/;
+    my ($taxid, $species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $tax_name) = split "\t", $input;
 
-	    $columns[$i] =~ s/\s/_/;
-	    $columns[$i] =~ s/\s.+//;
-	}
-	$taxaHash{$columns[0]}{$header[$i]} = $columns[$i]; 
+    if($species eq "NA") {
+	$species = $tax_name;
     }
+
+    $taxaHash{$taxid}{species} = $species;
+    $taxaHash{$taxid}{superkingdom} = $superkingdom;
+    $taxaHash{$taxid}{kingdom} = $kingdom;
+    $taxaHash{$taxid}{phylum} = $phylum;
+    $taxaHash{$taxid}{class} = $class;
+    $taxaHash{$taxid}{order} = $order;
+    $taxaHash{$taxid}{family} = $family;
+    $taxaHash{$taxid}{genus} = $genus;
 }
 
 ##############################
@@ -76,45 +73,40 @@ while(my $input = <TAXA>) {
 ### 
 
 $blastIn =~ s/(.*\.gz)\s*$/gzip -dc < $1|/;
-open BLAST, "$blastIn" or die "Could not open BLAST input\n";
+open my $blastFh, "$blastIn" or die "Could not open BLAST input\n";
 
-print "query\tsubjectGi\tqueryKingdom\tqueryPhylum\tqueryClass\tqueryOrder\tqueryFamily\tquerySpecies\tsubjectOrder\tsubjectFamily\tsubjectGenus\tsubjectSpecies\n";
+print "query\tsubjectAccession\tsubjectTaxid\tsubjectSuperkingdom\tsubjectKingdom\tsubjectPhylum\tsubjectClass\tsubjectOrder\tsubjectFamily\tsubjectGenus\tsubjectSpecies\n";
 
-while (my $input = <BLAST>) {
+while (my $input = <$blastFh>) {
     chomp $input;
-    if($input !~ /#/) {
-	my ($query, $subject, $evalue, $alignLen, $qLen, $sStart, $sEnd, $sLen) = split "\t", $input;
-	# if new query, print out min eval and gis and reset variables
-	if($lastQuery ne $query) {
-	    $minEVal = 1;
-	}
+    if($input !~ /^\#/) {
+	my ($query, $sTaxid, $score, $alignLen, $qLen, $sStart, $sEnd, $sLen, $sAcc) = split "\t", $input;
 	# compare minEval to evalue and keep if equal or new 
-	if($evalue <= $minEVal) {
-	    my $sGi = $subject;
-	    $sGi =~ s/^gi.//;
-	    $sGi =~ s/\|.+//;
-	    if(exists($taxaHash{$sGi}) && exists($taxaHash{$query})) {
-		my $genus = $taxaHash{$sGi}{species};
-		$genus =~ s/_.+//;
-		#print STDERR $query, "\n";
+	if($score >= $maxScore) {
+	    if(exists($taxaHash{$sTaxid})) {
 		print join("\t", 
-			   $query, 
-			   $sGi,
-			   $taxaHash{$query}{kingdom},
-			   $taxaHash{$query}{phylum},
-			   $taxaHash{$query}{class},
-			   $taxaHash{$query}{order},
-			   $taxaHash{$query}{family},
-			   $taxaHash{$query}{species},
-			   $taxaHash{$sGi}{order}, 
-			   $taxaHash{$sGi}{family}, 
-			   $genus, 
-			   $taxaHash{$sGi}{species},
+			   $fullQueryName, 
+			   $sAcc,
+			   $sTaxid,
+			   $taxaHash{$sTaxid}{superkingdom},
+			   $taxaHash{$sTaxid}{kingdom},
+			   $taxaHash{$sTaxid}{phylum},
+			   $taxaHash{$sTaxid}{class},
+			   $taxaHash{$sTaxid}{order}, 
+			   $taxaHash{$sTaxid}{family}, 
+			   $taxaHash{$sTaxid}{genus}, 
+			   $taxaHash{$sTaxid}{species},
 		    ), "\n";
 	    }
-	    $minEVal = $evalue;
+	    $maxScore = $score;
 	}
-	$lastQuery = $query;
+    } else {
+	if($input =~ /Query/) {
+	    $fullQueryName = $input;
+	    $fullQueryName =~ s/\# Query: //;
+	}
+	# if new query, reset maxScore
+	$maxScore = 0;
     }
 }
 
@@ -129,7 +121,7 @@ while (my $input = <BLAST>) {
 
 Summary:    
     
-    xxxxxx.pl - generates a consensus for a specified gene in a specified taxa
+    xxxxxx.pl - 
     
 Usage:
 
