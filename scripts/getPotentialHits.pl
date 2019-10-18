@@ -21,18 +21,16 @@ my $verbose;
 my $help;
 my $blastIn;
 my $taxaIn;
-my $primerF = "";
-my $primerR = "";
-my $alignVar = 0;
+my $primerFile;
+my $alignVar = 10;
 
 # i = integer, s = string
 GetOptions ("verbose"           => \$verbose,
             "help"              => \$help,
-            "blastIn=s"		=> \$blastIn,
-            "taxaIn=s"		=> \$taxaIn,
-	    "primerF=s"         => \$primerF,
-	    "primerR=s"         => \$primerR,
-	    "alignVar=i"        => \$alignVar
+            "blastIn=s"	        => \$blastIn,
+            "taxaIn=s"		      => \$taxaIn,
+	          "primerFile=s"      => \$primerFile,
+	          "alignVar=i"        => \$alignVar
       )
  or pod2usage(0) && exit;
 
@@ -42,13 +40,13 @@ pod2usage(1) && exit if ($help);
 ##############################
 # Global variables
 ##############################
+my $forLength;
+my $revLength;
 my %taxaHash;
 my $taxaCount = 0;
 my $blastCount = 0;
 my $notFoundTaxaCount = 0;
 my $notFoundTaxaList;
-my $forLength = length($primerF);
-my $revLength = length($primerR);
 my %resultsHash;
 
 ##############################
@@ -58,48 +56,65 @@ my %resultsHash;
 ##############################
 ### Check that proper input was provided
 
-if($primerF eq "" || $primerR eq "" || !defined($blastIn) || !defined($taxaIn)) {
+if(!defined($primerFile) || !defined($blastIn) || !defined($taxaIn)) {
     print STDERR "\n\nPrimer sequences and other input must be provided.\n";
     print STDERR "primerF: ", $primerF, "\nprimerR: ", $primerR, "\nblastIn: ", $blastIn, "\ntaxaIn: ", $taxaIn, "\n\n";
     pod2usage(1);
     die;
 }
 
+##############################
+### Read in primer sequences and store sequence lengths
+
+open my $primerFH, "$primerFile" or die "Could not open taxonomy input\n";
+
+while(my $input = <$primerFH>) {
+    chomp $input;
+    
+    if($verbose) {
+	    print STDERR "Reading primers                      \r";
+    }
+    
+    my ($nameF, $primerF, $nameR, $primerR, $target) = split "\t", $input;
+    $forLength = length($primerF);
+    $revLength = length($primerR);
+}
 
 ##############################
 ### Pull in taxa info and make hash of form:
 ### $taxaHash{gi}{taxaLevel or taxId} = taxon
 
-open TAXA, "$taxaIn" or die "Could not open taxonomy input\n";
-my @header = split "\t", <TAXA>;
+open my $taxaFH, "$taxaIn" or die "Could not open taxonomy input\n";
+my @header = split "\t", <$taxaFH>;
 chomp @header;
-while(my $input = <TAXA>) {
+while(my $input = <$taxaFH>) {
     chomp $input;
     if($verbose) {
-	$taxaCount++;
-	print STDERR "Taxa entries processed: ", $taxaCount, "                      \r";
+	    $taxaCount++;
+	    print STDERR "Taxa entries processed: ", $taxaCount, "                      \r";
     }
-    $input =~ s/\n//g;
-    my @columns = split "\t", $input;
-    for(my $i = 1; $i < scalar(@columns); $i++) {
-	if($header[$i] eq "species") {
-	    $columns[$i] =~ s/.+\ssp\..*/NA/;
-	    $columns[$i] =~ s/.*uncultured.*/NA/;
-	    $columns[$i] =~ s/.*unidentified.*/NA/;
-	    $columns[$i] =~ s/.*symbiont.*/NA/;
-	    $columns[$i] =~ s/.+\scf\.\s.+/NA/;
-	    $columns[$i] =~ s/.+isolate\s.+/NA/;
-	    $columns[$i] =~ s/\s/_/;
-	    $columns[$i] =~ s/\s.+//;
-	}
-	$taxaHash{$columns[0]}{$header[$i]} = $columns[$i]; 
+
+    my ($taxid, $species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $tax_name) = split "\t", $input;
+
+    # all entries have tax_name, but not all have species
+    if($species eq "NA") {
+	    $species = $tax_name;
     }
+    #construct taxa hash
+    $taxaHash{$taxid}{species} = $species;
+    $taxaHash{$taxid}{superkingdom} = $superkingdom;
+    $taxaHash{$taxid}{kingdom} = $kingdom;
+    $taxaHash{$taxid}{phylum} = $phylum;
+    $taxaHash{$taxid}{class} = $class;
+    $taxaHash{$taxid}{order} = $order;
+    $taxaHash{$taxid}{family} = $family;
+    $taxaHash{$taxid}{genus} = $genus;
 }
 
 
 
 ##############################
-### Go through blast output and print out top hits with taxa
+### Go through blast output
 ### 
 
 $blastIn =~ s/(.*\.gz)\s*$/gzip -dc < $1|/;
@@ -113,43 +128,46 @@ while (my $input = <BLAST>) {
     chomp $input;
     
     if($input !~ /^\#/) {
-	if($verbose) {
-	    $blastCount++;
-	    print STDERR "Blast entries processed: ", $blastCount, "                     \r";
-	}
-	## Need: qlen, slen to figure out if the whole thing aligned or if just part and if the subject has additional sequence that the
-	## primers could have hit
-	my ($query, $subject, $evalue, $alignLen, $qLen, $sStart, $sEnd, $sLen) = split "\t", $input;
+    	if($verbose) {
+    	    $blastCount++;
+    	    print STDERR "Blast entries processed: ", $blastCount, "                     \r";
+    	}
+    	## Need: qlen, slen to figure out if the whole thing aligned or if just part and if the subject has additional sequence that the
+    	## primers could have hit
+    	#my ($query, $subject, $evalue, $alignLen, $qLen, $sStart, $sEnd, $sLen) = split "\t", $input;
+    	my ($query, $sTaxid, $score, $alignLen, $qStart, $qEnd, $qLen, $sStart, $sEnd, $sLen, $sAcc) = split "\t", $input;
 
-	
-	my $alignPercent = 100 * ($alignLen / $qLen);
-
-	if($alignPercent >= (100 - $alignVar) && $alignPercent <= (100 + $alignVar)) {      #$qLen == $alignLen) {
-	    if(($sStart - $forLength) >= 0 && ($sLen - $sEnd) >= $revLength ) {
-		# Put results into hash to remove duplicates
-		if(exists($taxaHash{$subject})) {
-		    $resultsHash{$taxaHash{$subject}{superkingdom} . "\t" . 
-				     $taxaHash{$subject}{kingdom} . "\t" . 
-				     $taxaHash{$subject}{phylum} . "\t" . 
-				     $taxaHash{$subject}{class} . "\t" . 
-				     $taxaHash{$subject}{order} . "\t" . 
-				     $taxaHash{$subject}{family} . "\t" . 
-				     $taxaHash{$subject}{genus} . "\t" . 
-				     $taxaHash{$subject}{species}
-			     } = 1;
-		} else {
-		    $notFoundTaxaList .= $subject . ", "; 
-                    #print STDERR "gi# ", $subject, " taxonomic information not found!\n";
-		    $notFoundTaxaCount++;
-		}
-	    }
-	}
+    	my $alignPercent = 100 * ($alignLen / $qLen);
+    
+      # check if alignment length is above a provided cutoff to avoid sequences with 30bp aligned out of a 300bp fragment
+        # alignVar is a percent
+        # there is a problem here. The output does not indicate which side each primer belongs on. For now I am assuming
+        # the forward is on the front, but I may just change $forLength and $revLength to a numeric value
+    	if($alignPercent >= (100 - $alignVar) && $alignPercent <= (100 + $alignVar)) {
+  	    if($sStart >= ($forLength + $qStart - 1) & $sLen > ($sEnd + $revLength + ($qLen - $qEnd))) {
+      		# Put results into hash to remove duplicates
+      		if(exists($taxaHash{$sTaxid})) {
+      		    $resultsHash{$taxaHash{$sTaxid}{superkingdom} . "\t" . 
+      				     $taxaHash{$sTaxid}{kingdom} . "\t" . 
+      				     $taxaHash{$sTaxid}{phylum} . "\t" . 
+      				     $taxaHash{$sTaxid}{class} . "\t" . 
+      				     $taxaHash{$sTaxid}{order} . "\t" . 
+      				     $taxaHash{$sTaxid}{family} . "\t" . 
+      				     $taxaHash{$sTaxid}{genus} . "\t" . 
+      				     $taxaHash{$sTaxid}{species}
+      			     } = 1;
+      		} else {
+      		    $notFoundTaxaList .= $sTaxid . ", "; 
+              print STDERR "taxid ", $sTaxid, " taxonomic information not found!\n";
+      		    $notFoundTaxaCount++;
+      		}
+  	    }
+      }
     }
 }
 
 if($notFoundTaxaCount > 0) {
-    print STDERR "\n\n######\nA total of ", $notFoundTaxaCount, " gis did not have matching taxonomic information in the taxa input file.\n######\n\n";
-    #print STDERR "Gi list:", $notFoundTaxaList, "\n";
+    print STDERR "\n\n######\nA total of ", $notFoundTaxaCount, " entries did not have matching taxonomic information in the taxa input file.\n######\n\n";
 }
 
 ##############################

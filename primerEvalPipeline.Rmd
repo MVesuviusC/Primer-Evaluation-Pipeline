@@ -45,7 +45,11 @@ theme_update(plot.title = element_text(hjust = 0.5))
 
 ## Setup
 ```{r setup, cache = FALSE, include = FALSE}
-opts_chunk$set(fig.height = 10, fig.width = 20, cache = TRUE)
+opts_chunk$set(fig.height = 10, 
+               fig.width = 20, 
+               cache = TRUE, 
+               cache.path = paste(outDir, "cache"), 
+               cache.extra = list(primerFile))
 ```
 
 Parameters used for knitting
@@ -208,13 +212,15 @@ perl scripts/uniqueFastaBySpeciesSeq.pl \
 
 
 ## Blast amplifiable sequences
+
+change blast output to better fit what I need for finding potential hits, adjust scripts/findTopBlastHitsWithTaxa.pl
 ```{bash blast, dependson = 'uniqueSeqs', eval = TRUE}
 ${blastLoc} \
     -task blastn \
     -db ${blastDb} \
     -query ${outDir}/seqsWithTaxaUnique.fasta \
     -num_threads ${threads} \
-    -outfmt "7 qseqid staxid score length qlen sstart send slen sacc" \
+    -outfmt "7 qseqid staxid score length qstart qend qlen sstart send slen sacc" \
     -max_hsps 1 \
     -max_target_seqs 10000 \
     | gzip \
@@ -283,16 +289,12 @@ perl scripts/countNumInRank.pl --input ${outDir}/blastParsed.txt --outDir ${outD
 ## Find missed hits
 banned words: sp., uncultured, unidentified, cf., isolate, symbiont
 ```{bash parsePotentialHits, dependson = 'parseTopBlastHits', eval = FALSE}
-# Apicomplexa
 perl scripts/getPotentialHits.pl \
     --alignVar 10 \
-    --taxa output/blast/blastTaxa.txt \
-    --blast output/blast/Apicomplexa18S_365_F_Apicomplexa18S_613_R_blastResults.txt \
-    
-    # change this to input primerFile
-    --primerF GACCTATCAGCTTTCGACGG \
-    --primerR CCCTCCAATTGWTACTCTGGR \
-      > output/blast/potentialHits/Apicomplexa18S_365_F_Apicomplexa18S_613_R_potential_hits.txt
+    --taxa ${outDir}/taxaRaw.txt \
+    --blast ${outDir}/blastResults.txt.gz \
+    --primerFile ${outDir}/${primerFile} \
+      > ${outDir}/potential_hits.txt
 
 # Parabasalia
 perl misc/getPotentialHits.pl --alignVar 10 --taxa output/blast/blastTaxa.txt --blast output/blast/Parabasalia18S_288_F_Parabasalia18S_654_R_blastResults.txt --primerF TAGGCTATCACGGGTAACGG --primerR GCGTCCTGATTTGTTCACAG > output/blast/potentialHits/Parabasalia18S_288_F_Parabasalia18S_654_R_potential_hits.txt

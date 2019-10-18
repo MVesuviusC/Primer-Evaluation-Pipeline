@@ -55,7 +55,7 @@ while(my $input = <$taxaFh>) {
     my ($taxid, $species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $tax_name) = split "\t", $input;
 
     if($species eq "NA") {
-	$species = $tax_name;
+	    $species = $tax_name;
     }
 
     $taxaHash{$taxid}{species} = $species;
@@ -80,7 +80,7 @@ print "query\tsubjectAccession\tsubjectTaxid\tsubjectSuperkingdom\tsubjectKingdo
 while (my $input = <$blastFh>) {
     chomp $input;
     if($input !~ /^\#/) {
-	my ($query, $sTaxid, $score, $alignLen, $qLen, $sStart, $sEnd, $sLen, $sAcc) = split "\t", $input;
+	my ($query, $sTaxid, $score, $alignLen, $qStart, $qEnd, $qLen, $sStart, $sEnd, $sLen, $sAcc) = split "\t", $input;
 	# compare minEval to evalue and keep if equal or new 
 	if($score >= $maxScore) {
 	    if(exists($taxaHash{$sTaxid})) {
