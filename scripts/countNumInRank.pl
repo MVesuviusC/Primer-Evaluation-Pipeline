@@ -17,7 +17,6 @@ use Pod::Usage;
 # Options
 ##############################
 
-
 my $verbose;
 my $help;
 my $input;
@@ -26,13 +25,12 @@ my $outDir = '.';
 # i = integer, s = string
 GetOptions ("verbose"           => \$verbose,
             "help"              => \$help,
-	    "input=s"           => \$input,
-	    "outDir=s"          => \$outDir
+      	    "input=s"           => \$input,
+      	    "outDir=s"          => \$outDir
       )
  or pod2usage(0) && exit;
 
 pod2usage(1) && exit if ($help);
-
 
 ##############################
 # Global variables
@@ -42,7 +40,6 @@ my %taxaStorageHash;
 ##############################
 # Code
 ##############################
-
 $outDir .= '/';
 
 ##############################
@@ -50,36 +47,28 @@ $outDir .= '/';
 
 # need to kick out any blast hit containing "banned words" 
 #     (sp., cf., isolate, uncultured, symbiont, unidentified)
+# should pull these in from a file
 
 open my $inputFH, "$input" or die "Could not open input\nWell, crap\n";
+
+my $header = <$inputFH>;
+chomp $header;
+$header =~ s/subject//g; # cut the label to just taxa name
+my @labelArray = split "\t", $header;
+
 while (my $input = <$inputFH>){
     chomp $input;
     my @inputArray = split "\t", $input;
-    
-    if($inputArray[0] ne "query") {
-	my @labelArray = ("query",
-			  "Accession",
-			  "Taxid",
-			  "Superkingdom",
-			  "Kingdom",
-			  "Phylum",
-			  "Class",
-			  "Order",
-			  "Family",
-			  "Genus",
-			  "Species");
+    my $query = $inputArray[0];
 	
-	my $query = $inputArray[0];
-	
-	for(my $level = 7; $level <=  10; $level++) {
+	  # order through species
+	  for(my $level = 7; $level <=  10; $level++) {
 	    if($inputArray[$level] ne "NA") {
-		# Hash organization: $taxaStorageHash{Taxa level}{query ID}{Taxa name}
-		# This keeps one copy of each taxa name for each query for each taxa level so I can count later
-		
-		$taxaStorageHash{$labelArray[$level]}{$query}{$inputArray[$level]} = 1;
+    		# Hash organization: $taxaStorageHash{Taxa level}{query ID}{Taxa name}
+    		# This keeps one copy of each taxa name for each query for each taxa level so I can count later
+		    $taxaStorageHash{$labelArray[$level]}{$query}{$inputArray[$level]} = 1;
 	    }	
-	}
-    }
+	  }
 }
 
 ##############################
@@ -95,20 +84,20 @@ for my $taxaLevel (keys %taxaStorageHash) {
     my $taxaCountSum = 0;
     my $queryNum = 0;
     for my $queryID (keys %{ $taxaStorageHash{$taxaLevel} }) {
-	my @keyArray = keys %{ $taxaStorageHash{$taxaLevel}{$queryID} };
-	my $numTaxa = scalar(@keyArray);
-
-	print $longOutputFH $taxaLevel, "\t", $queryID, "\t", $numTaxa, "\n";
-	
-	if($numTaxa != 0) { # skip the queries that hit nothing useful
-	    $queryNum++;
-	    $taxaCountSum += $numTaxa;
-	}
+    	my @keyArray = keys %{ $taxaStorageHash{$taxaLevel}{$queryID} };
+    	my $numTaxa = scalar(@keyArray);
+    
+    	print $longOutputFH $taxaLevel, "\t", $queryID, "\t", $numTaxa, "\n";
+    	
+    	if($numTaxa != 0) { # skip the queries that hit nothing useful
+    	    $queryNum++;
+    	    $taxaCountSum += $numTaxa;
+    	}
     }
     if($queryNum != 0) {
-	print $averageOutputFH $taxaLevel, "\t", $taxaCountSum / $queryNum, "\n";
+    	print $averageOutputFH $taxaLevel, "\t", $taxaCountSum / $queryNum, "\n";
     } else {
-	print $averageOutputFH $taxaLevel, "\tND\n";
+    	print $averageOutputFH $taxaLevel, "\tND\n";
     }
 }
 

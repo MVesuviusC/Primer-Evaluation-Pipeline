@@ -9,6 +9,8 @@ params:
   blastDb: nt
   taxonomyDb: taxonomyDb
   threads: 1
+  targetLevel: NA
+  targetTaxa: NA
 ---
 
 
@@ -16,12 +18,16 @@ Using parameters:
 https://bookdown.org/yihui/rmarkdown/params-knit.html
 
 # example command to run on hush
-rmarkdown::render("primerEvalPipeline.Rmd", params = list(
-  primerFile = "examplePrimerInputFile.txt",
-  blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
-  blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
-  taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
-  threads = 6
+rmarkdown::render("primerEvalPipeline.Rmd", 
+  output_dir = "evalOut/",
+  params = list(
+    primerFile = "examplePrimerInputFile.txt",
+    blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
+    blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
+    taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
+    threads = 6,
+    targetLevel = "genus",
+    targetTaxa = "Blastocystis"
 ))
 
 # Primer evaluation
@@ -31,6 +37,11 @@ Put in paragraph explaining goals and general approach here
 
 
 Target taxa needs to be a genus, family, order, class, phylum or kingdom (for now, I need to work on this)
+
+
+# To do
+I should move the primer file to ${outDir} so it 
+Need to deal with multiple taxids per blast hit..... separated by ";"
 
 ### Libraries
 ```{r loadLibraries, cache = FALSE, eval = TRUE}
@@ -48,8 +59,8 @@ theme_update(plot.title = element_text(hjust = 0.5))
 opts_chunk$set(fig.height = 10, 
                fig.width = 20, 
                cache = TRUE, 
-               cache.path = paste(outDir, "cache"), 
-               cache.extra = list(primerFile))
+               cache.path = paste(params$outDir, "/cache/", sep = ""), 
+               cache.extra = list(params$primerFile))
 ```
 
 Parameters used for knitting
@@ -81,18 +92,7 @@ Sys.setenv(threads = params$threads)
 mkdir $outDir
 mkdir ${outDir}
 mkdir ${outDir}/figures
-mkdir ${outDir}/topHitSummary
-#mkdir ${outDir}/sequences/trimmed
-#mkdir ${outDir}/blast
-#mkdir ${outDir}/blast/topParsed
-#mkdir ${outDir}/blast/potentialHits
-#mkdir misc
-#mkdir ${outDir}/unrestrictedPrimerTree/
-#mkdir ${outDir}/unrestrictedPrimerTree/primerTreeObj
-#mkdir ${outDir}/unrestrictedPrimerTree/figures
-#mkdir ${outDir}/unrestrictedPrimerTree/taxonomy
-#mkdir ${outDir}/unrestrictedPrimerTree/sequences
-#mkdir ${outDir}/primerDiffs
+#mkdir ${outDir}/topHitSummary
 ```
 
 ### Read in the input file with primers
@@ -104,6 +104,27 @@ primerDf <- read.delim(params$primerFile, header = FALSE, sep = "\t")
 primerDf
 # check if primers are in the right format and if not knit_exit()
 ```
+
+
+## Write out file containing "banned" words
+These are words found in species names that indicate that the species named is uncertain
+
+  * sp.
+  * cf.
+  * isolate
+  * uncultured
+  * symbiont
+  * unidentified
+
+```{r bannedWords, eval = TRUE, cache = FALSE}
+bannedWords <- c("sp.", "cf.", "isolate", "uncultured", "symbiont", "unidentified")
+```
+
+```{bash, writeBanned, eval = FALSE}
+echo -e "sp.\ncf.\nisolate\nuncultured\nsymbiont\nunidentified" > ${outDir}/bannedWords.txt
+```
+
+
 
 
 ## Find amplifiable species and document amplicon length and primer mismatches
@@ -124,6 +145,9 @@ This outputs:
     + dendroInstructionFile_*.txt
     + treePlot_*.svg 
 
+ #################### Need to make bsPrimerTree output full taxonomy of all amplifiable taxa
+
+
 ################### figure out how/if to pull in these perl scripts since they won't be in the folder
 #```{r, echo = F, cache = FALSE}
 #read_chunk('bsPrimerBlast.pl', labels = 'bsPrimerBlastCode')
@@ -136,7 +160,7 @@ This outputs:
 #```{perl bsPrimerTreeCode, eval = FALSE, cache = FALSE}
 #```
 
-```{bash bsPrimerTree, dependson = 'getPrimers', eval = TRUE}
+```{bash bsPrimerTree, dependson = 'getPrimers', eval = FALSE}
 bsPrimerBlast.pl \
       --primerInput ${primerFile} \
       --blastDb ${blastDb} \
@@ -204,7 +228,7 @@ read_chunk('scripts/uniqueFastaBySpeciesSeq.pl', labels = 'uniqueSeqsCode')
 ```
 ```{perl uniqueSeqsCode, eval = FALSE, cache = FALSE}
 ```
-```{bash uniqueSeqs, dependson = 'trimPrimerSeqs', eval = TRUE}
+```{bash uniqueSeqs, dependson = 'trimPrimerSeqs', eval = FALSE}
 perl scripts/uniqueFastaBySpeciesSeq.pl \
     --fasta ${outDir}/seqsWithTaxa.fasta \
       > ${outDir}/seqsWithTaxaUnique.fasta
@@ -213,8 +237,8 @@ perl scripts/uniqueFastaBySpeciesSeq.pl \
 
 ## Blast amplifiable sequences
 
-change blast output to better fit what I need for finding potential hits, adjust scripts/findTopBlastHitsWithTaxa.pl
-```{bash blast, dependson = 'uniqueSeqs', eval = TRUE}
+This needs to output format 7 (which includes headers) to be compatable with downstream code
+```{bash blast, dependson = 'uniqueSeqs', eval = FALSE}
 ${blastLoc} \
     -task blastn \
     -db ${blastDb} \
@@ -233,7 +257,7 @@ ${blastLoc} \
 
 ############### Need to deal with multiple taxids per blast hit..... separated by ";"
 
-```{bash getTaxids, dependson = 'blast', eval = TRUE}
+```{bash getTaxids, dependson = 'blast', eval = FALSE}
 zcat ${outDir}/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi.//' | perl -pe 's/\|.+//' | sort | uniq > ${outDir}/taxids.txt 
 ```
 
@@ -243,7 +267,7 @@ zcat ${outDir}/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi./
 local taxonomy database is created by makeTaxonomyDb.pl. This script and getTaxaLocal.pl are available at:
 (https://github.com/MVesuviusC/getTaxa/)
 
-```{bash getTaxonomy, dependson = 'getGi', eval = TRUE}
+```{bash getTaxonomy, dependson = 'getTaxids', eval = FALSE}
 getTaxaLocal.pl --dbName ${taxonomyDb} --taxids ${outDir}/taxids.txt > ${outDir}/taxaRaw.txt 
 ```
 
@@ -281,28 +305,51 @@ This counts, for each query sequence blasted above, the number of taxonomic grou
 hit. Essentially, this tells you, if you were to generate real data, how many species/genera/families/orders 
 would you expect to match each sequence. 
 
-```{bash countNumInRank, dependson = 'parseTopBlastHits', eval = FALSE}
-perl scripts/countNumInRank.pl --input ${outDir}/blastParsed.txt --outDir ${outDir}/
+need to deal with "banned" words - should pull these into scripts from a file to make for easy updating
+
+```{bash countNumInRank, dependson = 'parseTopBlastHits', eval = TRUE}
+perl scripts/countNumInRank.pl --input ${outDir}/blastParsed.txt --outDir ${outDir}
 ```
 
 
-## Find missed hits
+## Find species with sequences in the nt database that could have been found by bsPrimerBlast
 banned words: sp., uncultured, unidentified, cf., isolate, symbiont
-```{bash parsePotentialHits, dependson = 'parseTopBlastHits', eval = FALSE}
+```{bash parsePotentialHits, dependson = 'parseTopBlastHits', eval = TRUE}
 perl scripts/getPotentialHits.pl \
     --alignVar 10 \
     --taxa ${outDir}/taxaRaw.txt \
     --blast ${outDir}/blastResults.txt.gz \
-    --primerFile ${outDir}/${primerFile} \
+    --primerFile ${primerFile} \
       > ${outDir}/potential_hits.txt
-
-# Parabasalia
-perl misc/getPotentialHits.pl --alignVar 10 --taxa output/blast/blastTaxa.txt --blast output/blast/Parabasalia18S_288_F_Parabasalia18S_654_R_blastResults.txt --primerF TAGGCTATCACGGGTAACGG --primerR GCGTCCTGATTTGTTCACAG > output/blast/potentialHits/Parabasalia18S_288_F_Parabasalia18S_654_R_potential_hits.txt
 ```
 
-## Generate list of amplifiable hits
-Do this after finding potential hits since the taxaRaw file includes instances where only one primer hits
-```{bash listHitSpecies, dependson = 'getTaxonomy', eval = FALSE}
+### Generate list of on-target species with sequences in the nt database
+
+```{r listHitSpecies, dependson = 'parsePotentialHits', eval = TRUE}
+potentialHits <- read.delim(paste(params$outDir, "/potential_hits.txt", sep = ""))
+# The taxa level should always be lowercase, but might be supplied uppercase
+targetLevel <- tolower(params$targetLevel)
+
+# Make sure the provided taxaLevel argument is valid
+if(!targetLevel %in% colnames(potentialHits)) {
+  warning("The target taxonomic level (\"targetLevel\") provided in input options is not one of: ", paste(colnames(potentialHits), collapse = ", "))
+  warning("Please modify target taxa and retry!")
+  knit_exit()
+}
+# Get only on target hits
+potentialHits <- subset(potentialHits, get(targetLevel) == params$targetTaxa)
+
+# Get rid of hits with "banned" words
+potentialSpecies <- as.data.frame(potentialHits[grep(paste(bannedWords, collapse = "|"), potentialHits$species, perl = T, invert = T),])
+
+print(paste(params$outDir, "/potentialSpeciesOnTarget.txt", sep = ""))
+
+write.table(potentialSpecies, file = paste(params$outDir, "/potentialSpeciesOnTarget.txt", sep = ""))
+```
+
+
+
+```{bash listHitSpeciesDELETEME, dependson = 'getTaxonomy', eval = FALSE}
 
 ################
 ######### Double check field cuts

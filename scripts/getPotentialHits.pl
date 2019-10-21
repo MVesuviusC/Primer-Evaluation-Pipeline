@@ -36,7 +36,6 @@ GetOptions ("verbose"           => \$verbose,
 
 pod2usage(1) && exit if ($help);
 
-
 ##############################
 # Global variables
 ##############################
@@ -58,7 +57,7 @@ my %resultsHash;
 
 if(!defined($primerFile) || !defined($blastIn) || !defined($taxaIn)) {
     print STDERR "\n\nPrimer sequences and other input must be provided.\n";
-    print STDERR "primerF: ", $primerF, "\nprimerR: ", $primerR, "\nblastIn: ", $blastIn, "\ntaxaIn: ", $taxaIn, "\n\n";
+    print STDERR "primerFile: ", $primerFile, "\nblastIn: ", $blastIn, "\ntaxaIn: ", $taxaIn, "\n\n";
     pod2usage(1);
     die;
 }
@@ -66,7 +65,7 @@ if(!defined($primerFile) || !defined($blastIn) || !defined($taxaIn)) {
 ##############################
 ### Read in primer sequences and store sequence lengths
 
-open my $primerFH, "$primerFile" or die "Could not open taxonomy input\n";
+open my $primerFH, "$primerFile" or die "Could not open primer input\n";
 
 while(my $input = <$primerFH>) {
     chomp $input;
@@ -134,7 +133,6 @@ while (my $input = <BLAST>) {
     	}
     	## Need: qlen, slen to figure out if the whole thing aligned or if just part and if the subject has additional sequence that the
     	## primers could have hit
-    	#my ($query, $subject, $evalue, $alignLen, $qLen, $sStart, $sEnd, $sLen) = split "\t", $input;
     	my ($query, $sTaxid, $score, $alignLen, $qStart, $qEnd, $qLen, $sStart, $sEnd, $sLen, $sAcc) = split "\t", $input;
 
     	my $alignPercent = 100 * ($alignLen / $qLen);
@@ -142,9 +140,9 @@ while (my $input = <BLAST>) {
       # check if alignment length is above a provided cutoff to avoid sequences with 30bp aligned out of a 300bp fragment
         # alignVar is a percent
         # there is a problem here. The output does not indicate which side each primer belongs on. For now I am assuming
-        # the forward is on the front, but I may just change $forLength and $revLength to a numeric value
+        # the forward is on the front, but I may just change $forLength and $revLength to a numeric value option
     	if($alignPercent >= (100 - $alignVar) && $alignPercent <= (100 + $alignVar)) {
-  	    if($sStart >= ($forLength + $qStart - 1) & $sLen > ($sEnd + $revLength + ($qLen - $qEnd))) {
+  	    if($sStart >= ($forLength + $qStart - 1) && $sLen > ($sEnd + $revLength + ($qLen - $qEnd))) {
       		# Put results into hash to remove duplicates
       		if(exists($taxaHash{$sTaxid})) {
       		    $resultsHash{$taxaHash{$sTaxid}{superkingdom} . "\t" . 
@@ -221,13 +219,9 @@ Taxonomic information on BLAST hits. Should be the gi number followed by columns
 
 Blast input. Should be output from BLAST with -outfmt "7 qseqid sgi length qlen sstart send slen" 
 
-=item B<--primerF>
+=item B<--primerFile>
 
-Sequence of the forward primer used.
-
-=item B<--primerR>
-
-Sequence of the reverse primer used.
+Sequences of the primers used.
 
 =back
 
