@@ -203,6 +203,11 @@ while(my $blastInput = <$blastDbCmdResponse>) {
     $taxid =~ s/.+_//;
 
     ### use the subject sequences given by bsPrimerBlast to trim primer sequence aligned portion off sequence 
+
+    ###
+    ############  See Haikel's Nege2 primers, but the returned sequence/primers may need to be rev comp'd to find the match for trimming
+    ### Negevirus_group2_F GTTGCWGGTCACGGTAARAC	Negevirus_group2_R CRTCAGCWGGAATWCGATAC
+
     my @seqsToTrimOff = @{ $seqTrimHash{$gi} };
     if($seq =~ /^$seqsToTrimOff[1].+$seqsToTrimOff[0]$/) {
 	$seq =~ s/^$seqsToTrimOff[1]//;
