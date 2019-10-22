@@ -310,7 +310,7 @@ $/ = "\n";
 ########################
 ### Print out a log of the number of taxa within each taxonomic level
 open my $taxaSummaryFile, ">", $outDir . "taxaSummary.txt";
-print $taxaSummaryFile "superkingdom\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\tName\tCount\n";
+print $taxaSummaryFile "superkingdom\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\tCount\n";
 
 #for my $level ("subkingdom", "kingdom", "phylum", "class", "order", "family", "genus", "species") {
 #    for my $taxName (keys %{ $taxNamesHash{$level} } ) {
