@@ -36,12 +36,17 @@ Put in paragraph explaining goals and general approach here
 
 
 
-Target taxa needs to be a genus, family, order, class, phylum or kingdom (for now, I need to work on this)
+Target taxa needs to be a species, genus, family, order, class, phylum or kingdom 
+  (For now, I need to work on this. The issue is creating the database using makeTaxonomyDb.pl. This script 
+  uses the rankedlineage.dmp file from the NCBI taxdump, which only includes these taxonomic levels. I need
+  to use the other files to parse out all the taxonomic levels, but doing this is going to be
+  a huge pain due to the format they're in.)
 
 
 # To do
-I should move the primer file to ${outDir} so it 
-Need to deal with multiple taxids per blast hit..... separated by ";"
+  * I should move the primer file to ${outDir} so it 
+  * Need to deal with multiple taxids per blast hit..... separated by ";"
+  * Allow taxonomic levels other than sgfocpk
 
 ### Libraries
 ```{r loadLibraries, cache = FALSE, eval = TRUE}
@@ -116,16 +121,10 @@ These are words found in species names that indicate that the species named is u
   * symbiont
   * unidentified
 
-```{r bannedWords, eval = TRUE, cache = FALSE}
+```{r bannedWords, cache = FALSE, eval = TRUE}
 bannedWords <- c("sp.", "cf.", "isolate", "uncultured", "symbiont", "unidentified")
+write(bannedWords, file = paste(params$outDir, "bannedWords.txt", sep = ""), sep = "\t")
 ```
-
-```{bash, writeBanned, eval = FALSE}
-echo -e "sp.\ncf.\nisolate\nuncultured\nsymbiont\nunidentified" > ${outDir}/bannedWords.txt
-```
-
-
-
 
 ## Find amplifiable species and document amplicon length and primer mismatches
 
@@ -160,7 +159,7 @@ This outputs:
 #```{perl bsPrimerTreeCode, eval = FALSE, cache = FALSE}
 #```
 
-```{bash bsPrimerTree, dependson = 'getPrimers', eval = FALSE}
+```{bash bsPrimerTree, dependson = 'getPrimers', eval = TRUE}
 bsPrimerBlast.pl \
       --primerInput ${primerFile} \
       --blastDb ${blastDb} \
@@ -171,7 +170,7 @@ bsPrimerBlast.pl \
       --inFile - \
       --blastDb ${blastDb} \
       --taxDb ${taxonomyDb} \
-      --outDir ${outDir} \
+      --outDir ${outDir}/bsPrimerTreeOut \
       --threads ${threads} \
       --noPlots \
       --maxSeqsPerSpecies 3
@@ -180,7 +179,7 @@ bsPrimerBlast.pl \
 ### Plot amplicon length distribution 
 This includes all hits from all species, so there may be inflation of certain values if one or more species has tons of hits.
 ```{r plotAmpLens, dependson = 'bsPrimerTree', eval = TRUE}
-ampLenDf <- read.delim(paste(params$outDir, "/ampliconLengths.txt", sep = ""), header = FALSE)
+ampLenDf <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/ampliconLengths.txt", sep = ""), header = FALSE)
 
 png(paste(params$outDir, "/figures/ampliconLens.png", sep = ""), width = 1000, height = 1000, res = 300)
   ggplot(ampLenDf, aes(x = V2)) + 
@@ -191,10 +190,31 @@ png(paste(params$outDir, "/figures/ampliconLens.png", sep = ""), width = 1000, h
 dev.off()
 ```
 
+### List on-target hits
+```{r listOnTargetHits, dependson = 'bsPrimerTree', eval = TRUE}
+bsPrimerTreeHits <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""))
+# The taxa level should always be lowercase, but might be supplied uppercase
+targetLevel <- tolower(params$targetLevel)
+
+# Make sure the provided taxaLevel argument is valid
+if(!targetLevel %in% colnames(bsPrimerTreeHits)) {
+  warning("The target taxonomic level (\"targetLevel\") provided in input options is not one of: ", paste(colnames(potentialHits), collapse = ", "))
+  warning("Please modify target taxa and retry!")
+  knit_exit()
+}
+# Get only on target hits
+bsPrimerTreeHits <- subset(bsPrimerTreeHits, get(targetLevel) == params$targetTaxa)
+
+# Get rid of hits with "banned" words
+bsPrimerTreeHits <- as.data.frame(bsPrimerTreeHits[grep(paste(bannedWords, collapse = "|"), bsPrimerTreeHits$species, perl = T, invert = T),])
+
+write.table(bsPrimerTreeHits, file = paste(params$outDir, "/bsPrimerTreeOut/SpeciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
+```
+
 ### Plot primer mismatch counts
 Would like to instead plot number of mismatches for sub-taxa to show how bias might manifest
 ```{r plotPrimerMismatch, dependson = 'bsPrimerTree', eval = TRUE}
-primerMismatches <- read.delim(paste(params$outDir, "/primerMismatches.txt", sep = ""))
+primerMismatches <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatches.txt", sep = ""))
 
 primerMismatches$Primer <- gsub(":.+", "", primerMismatches$TotalMismatches)
 primerMismatches$Primer <- gsub("for", "Forward", primerMismatches$Primer)
@@ -228,9 +248,9 @@ read_chunk('scripts/uniqueFastaBySpeciesSeq.pl', labels = 'uniqueSeqsCode')
 ```
 ```{perl uniqueSeqsCode, eval = FALSE, cache = FALSE}
 ```
-```{bash uniqueSeqs, dependson = 'trimPrimerSeqs', eval = FALSE}
+```{bash uniqueSeqs, dependson = 'trimPrimerSeqs', eval = TRUE}
 perl scripts/uniqueFastaBySpeciesSeq.pl \
-    --fasta ${outDir}/seqsWithTaxa.fasta \
+    --fasta ${outDir}/bsPrimerTreeOut/seqsWithTaxa.fasta \
       > ${outDir}/seqsWithTaxaUnique.fasta
 ```
 
@@ -238,7 +258,7 @@ perl scripts/uniqueFastaBySpeciesSeq.pl \
 ## Blast amplifiable sequences
 
 This needs to output format 7 (which includes headers) to be compatable with downstream code
-```{bash blast, dependson = 'uniqueSeqs', eval = FALSE}
+```{bash blast, dependson = 'uniqueSeqs', eval = TRUE}
 ${blastLoc} \
     -task blastn \
     -db ${blastDb} \
@@ -257,7 +277,7 @@ ${blastLoc} \
 
 ############### Need to deal with multiple taxids per blast hit..... separated by ";"
 
-```{bash getTaxids, dependson = 'blast', eval = FALSE}
+```{bash getTaxids, dependson = 'blast', eval = TRUE}
 zcat ${outDir}/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi.//' | perl -pe 's/\|.+//' | sort | uniq > ${outDir}/taxids.txt 
 ```
 
@@ -267,7 +287,7 @@ zcat ${outDir}/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi./
 local taxonomy database is created by makeTaxonomyDb.pl. This script and getTaxaLocal.pl are available at:
 (https://github.com/MVesuviusC/getTaxa/)
 
-```{bash getTaxonomy, dependson = 'getTaxids', eval = FALSE}
+```{bash getTaxonomy, dependson = 'getTaxids', eval = TRUE}
 getTaxaLocal.pl --dbName ${taxonomyDb} --taxids ${outDir}/taxids.txt > ${outDir}/taxaRaw.txt 
 ```
 
@@ -320,13 +340,13 @@ perl scripts/getPotentialHits.pl \
     --taxa ${outDir}/taxaRaw.txt \
     --blast ${outDir}/blastResults.txt.gz \
     --primerFile ${primerFile} \
-      > ${outDir}/potential_hits.txt
+      > ${outDir}/potentialHits.txt
 ```
 
 ### Generate list of on-target species with sequences in the nt database
 
 ```{r listHitSpecies, dependson = 'parsePotentialHits', eval = TRUE}
-potentialHits <- read.delim(paste(params$outDir, "/potential_hits.txt", sep = ""))
+potentialHits <- read.delim(paste(params$outDir, "/potentialHits.txt", sep = ""))
 # The taxa level should always be lowercase, but might be supplied uppercase
 targetLevel <- tolower(params$targetLevel)
 
@@ -342,9 +362,7 @@ potentialHits <- subset(potentialHits, get(targetLevel) == params$targetTaxa)
 # Get rid of hits with "banned" words
 potentialSpecies <- as.data.frame(potentialHits[grep(paste(bannedWords, collapse = "|"), potentialHits$species, perl = T, invert = T),])
 
-print(paste(params$outDir, "/potentialSpeciesOnTarget.txt", sep = ""))
-
-write.table(potentialSpecies, file = paste(params$outDir, "/potentialSpeciesOnTarget.txt", sep = ""))
+write.table(potentialSpecies, file = paste(params$outDir, "/potentialSpeciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
 ```
 
 
