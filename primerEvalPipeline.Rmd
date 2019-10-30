@@ -9,8 +9,6 @@ params:
   blastDb: nt
   taxonomyDb: taxonomyDb
   threads: 1
-  targetLevel: NA
-  targetTaxa: NA
 ---
 
 
@@ -26,8 +24,6 @@ rmarkdown::render("primerEvalPipeline.Rmd",
     blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
     taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
     threads = 6,
-    targetLevel = "genus",
-    targetTaxa = "Blastocystis"
 ))
 
 rmarkdown::render("primerEvalPipeline.Rmd", 
@@ -38,11 +34,21 @@ rmarkdown::render("primerEvalPipeline.Rmd",
     blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
     blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
     taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
-    threads = 20,
-    targetLevel = "class",
-    targetTaxa = "Mammalia"
-))
+    threads = 20
+  )
+)
 
+rmarkdown::render("primerEvalPipeline.Rmd", 
+  output_dir = "Phlebovirus1Out/",
+  params = list(
+    outDir = "Phlebovirus1Out",
+    primerFile = "examplePrimerInputPhlebovirus1.txt",
+    blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
+    blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
+    taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
+    threads = 35
+  )
+)
 
 
 
@@ -60,13 +66,18 @@ Target taxa needs to be a species, genus, family, order, class, phylum or kingdo
 
 
 # To do
-  * I should move the primer file to ${outDir} so it is recorded
+
   * Need to deal with multiple taxids per blast hit..... separated by ";"
   * Allow taxonomic levels other than sgfocpk
   * Move taxaCloud
   * Make sure taxaTarget entry can handle lowercase
   * Implement checks that each step succeeded
   * Output a warning if the reblast step has too many reads (define too many)
+  * Implement measurement of distance to most similar species for each species and make average
+    * break down by average distance to nearest species, genus, family? 
+  * Change bsPrimerTree primer mismatch output so I can capture only on-target hits
+  * put amplicon length into summary table
+  * Make script to split primer file into multiple, file named by primer inside
 
 ### Libraries
 ```{r loadLibraries, cache = FALSE, eval = TRUE}
@@ -114,7 +125,6 @@ Sys.setenv(blastLoc = params$blastLoc)
 Sys.setenv(blastDb = params$blastDb)
 Sys.setenv(taxonomyDb = params$taxonomyDb)
 Sys.setenv(threads = params$threads)
-Sys.setenv(targetTaxa = params$targetTaxa)
 ```
 
 ### Create directories
@@ -127,7 +137,6 @@ mkdir ${outDir}/didHit
 mkdir ${outDir}/reBlastOut
 mkdir ${outDir}/couldHaveHit
 mkdir ${outDir}/figures
-#mkdir ${outDir}/topHitSummary
 ```
 
 ### Read in the input file with primers
@@ -136,8 +145,14 @@ primerNameF primerF primerNameR primerR targetTaxa
 
 ```{r getPrimers, cache = FALSE, eval = TRUE}
 primerDf <- read.delim(params$primerFile, header = FALSE, sep = "\t")
+colnames(primerDf) <- c("PrimerFName", "PrimerF", "PrimerRName", "PrimerR", "TargetTaxa", "TargetLevel")
 primerDf
-# check if primers are in the right format and if not knit_exit()
+targetTaxa <- as.character(primerDf$TargetTaxa[1]) # first letter should be capitalized - put in check
+targetLevel <- tolower(as.character(primerDf$TargetLevel[1])) # needs to be lowercase to match later
+
+Sys.setenv(targetTaxa = targetTaxa)
+
+# check if primer file is in the right format and if not knit_exit()
 ```
 
 
@@ -224,7 +239,6 @@ dev.off()
 ```{r listOnTargetHits, dependson = 'bsPrimerTree', eval = TRUE}
 bsPrimerTreeHits <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""))
 # The taxa level should always be lowercase, but might be supplied uppercase
-targetLevel <- tolower(params$targetLevel)
 
 # Make sure the provided taxaLevel argument is valid
 if(!targetLevel %in% colnames(bsPrimerTreeHits)) {
@@ -233,7 +247,7 @@ if(!targetLevel %in% colnames(bsPrimerTreeHits)) {
   knit_exit()
 }
 # Get only on target hits
-bsPrimerTreeHits <- subset(bsPrimerTreeHits, get(targetLevel) == params$targetTaxa)
+bsPrimerTreeHits <- subset(bsPrimerTreeHits, get(targetLevel) == targetTaxa)
 
 # Get rid of hits with "banned" words
 bsPrimerTreeHits <- as.data.frame(bsPrimerTreeHits[grep(paste(bannedWords, collapse = "|"), bsPrimerTreeHits$species, perl = T, invert = T),])
@@ -401,7 +415,6 @@ perl scripts/getPotentialHits.pl \
 ```{r listHitSpecies, dependson = 'parsePotentialHits', eval = TRUE}
 potentialHits <- read.delim(paste(params$outDir, "/couldHaveHit/potentialHits.txt", sep = ""))
 # The taxa level should always be lowercase, but might be supplied uppercase
-targetLevel <- tolower(params$targetLevel)
 
 # Make sure the provided taxaLevel argument is valid
 if(!targetLevel %in% colnames(potentialHits)) {
@@ -410,7 +423,7 @@ if(!targetLevel %in% colnames(potentialHits)) {
   knit_exit()
 }
 # Get only on target hits
-potentialHits <- subset(potentialHits, get(targetLevel) == params$targetTaxa)
+potentialHits <- subset(potentialHits, get(targetLevel) == targetTaxa)
 
 # Get rid of hits with "banned" words
 potentialSpecies <- as.data.frame(potentialHits[grep(paste(bannedWords, collapse = " | "), potentialHits$species, perl = T, invert = T),])
@@ -441,15 +454,16 @@ Primer taxonomic specificity
 
 ```{r makingSummaryTable, eval = TRUE}
 summaryTable <- primerDf
-colnames(summaryTable) <- c("PrimerFName", "PrimerF", "PrimerRName", "PrimerR", "TargetTaxa")
 
 ### Percent of on-target amplifiable hits
 taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""))
 taxaSummary <- taxaSummary[grep(paste(bannedWords, collapse = " | "), taxaSummary$species, invert = T),]
 
-taxaSummaryOnTarget <- subset(taxaSummary, get(params$targetLevel) == params$targetTaxa)
+################################### should use outDir/didHit/SpeciesOnTarget.txt
 
-summaryTable$onTargetSpeciesAmplifiedCount <- sum(taxaSummary[[params$targetLevel]] == params$targetTaxa, na.rm = T)
+taxaSummaryOnTarget <- subset(taxaSummary, get(targetLevel) == targetTaxa)
+
+summaryTable$onTargetSpeciesAmplifiedCount <- sum(taxaSummary[[targetLevel]] == targetTaxa, na.rm = T)
 
 summaryTable$allSpeciesAmplifiedCount <- nrow(taxaSummary)
 
@@ -472,7 +486,6 @@ forCloud <- taxaSummary %>%
   mutate(., Level = factor(Level, levels = colnames(taxaSummary[1:8]))) %>%
   mutate(., Taxa = replace_na(Taxa, "ND"))
 
-
 png(filename = paste(params$outDir, "/figures/TaxaCloud.png", sep = ""), width = 4000, height = 4000, res = 600)
 ggplot(forCloud, aes(label = paste(Taxa, " (", Percent, "%)", sep = ""), size = log10Count)) +
   geom_text_wordcloud_area(shape = "square") +
@@ -484,9 +497,9 @@ dev.off()
 
 #### Species that could have been amplified
 potentialHits <- read.delim(file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), header = T)
+potentialSpecies <- as.character(unique(potentialHits$species))
 potentialHits$WasHit <- potentialHits$species %in% potentialSpecies[potentialSpecies %in% taxaSummaryOnTarget$species]
 
-potentialSpecies <- as.character(unique(potentialHits$species))
 
 missedSpecies <- potentialHits[potentialHits$species %in% potentialSpecies[!potentialSpecies %in% taxaSummaryOnTarget$species],]
                         
@@ -501,7 +514,7 @@ missedSummary <- potentialHits %>%
   summarize(., PercentHit = sum(WasHit) / length(WasHit), NumHit = sum(WasHit), NumMissed = length(WasHit) - sum(WasHit)) %>% 
   ungroup()
 
-missedSummary$Level <- factor(MissedSummary$Level, levels = c("species", "genus", "family", "order", "class", "phylum", "kingdom"))
+missedSummary$Level <- factor(missedSummary$Level, levels = c("species", "genus", "family", "order", "class", "phylum", "kingdom"))
 
 png(filename = paste(params$outDir, "/figures/TaxaPercentAmplifiableByTaxa.png", sep = ""), width = 8000, height = 6000, res = 300)
 ggplot(missedSummary, aes(x = reorder(Taxa, -PercentHit), y = PercentHit * 100)) + 
@@ -521,7 +534,6 @@ topHitMeans <- topHitMeans[-1,]
 rownames(topHitMeans) <- 1
 
 summaryTable <- cbind(summaryTable, topHitMeans)
-
 
 topHitSummary <- read.delim(file = paste(params$outDir, "/topHitSummary.txt", sep = ""), header = T)
 topHitSummary <- topHitSummary %>% 
