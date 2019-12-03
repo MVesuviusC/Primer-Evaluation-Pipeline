@@ -208,13 +208,24 @@ while(my $blastInput = <$blastDbCmdResponse>) {
     ############  See Haikel's Nege2 primers, but the returned sequence/primers may need to be rev comp'd to find the match for trimming
     ### Negevirus_group2_F GTTGCWGGTCACGGTAARAC	Negevirus_group2_R CRTCAGCWGGAATWCGATAC
 
+    ### Check this if else stack for logic later ############################
+
     my @seqsToTrimOff = @{ $seqTrimHash{$gi} };
-    if($seq =~ /^$seqsToTrimOff[1].+$seqsToTrimOff[0]$/) {
-	$seq =~ s/^$seqsToTrimOff[1]//;
-	$seq =~ s/$seqsToTrimOff[0]//;
-    } elsif($seq =~ /^$seqsToTrimOff[0].+$seqsToTrimOff[1]$/) {
+
+    my @revCompSeqsToTrimOff = (revComp($seqsToTrimOff[0]), revComp($seqsToTrimOff[1])); 
+
+    if($seq =~ /^$seqsToTrimOff[0].+$seqsToTrimOff[1]$/) { 
 	$seq =~ s/^$seqsToTrimOff[0]//;
 	$seq =~ s/$seqsToTrimOff[1]$//;
+    } elsif($seq =~ /^$revCompSeqsToTrimOff[1].+$revCompSeqsToTrimOff[0]$/) {
+	$seq =~ s/^$revCompSeqsToTrimOff[1]//;
+	$seq =~ s/$revCompSeqsToTrimOff[0]$//;
+    } elsif($seq =~ /^$seqsToTrimOff[1].+$seqsToTrimOff[0]$/) {
+	$seq =~ s/^revComp($seqsToTrimOff[1])//;
+	$seq =~ s/revComp($seqsToTrimOff[0])$//;
+#    } elsif($seq =~ /^revComp($seqsToTrimOff[0]).+revComp($seqsToTrimOff[1])$/) {
+#	$seq =~ s/^revComp($seqsToTrimOff[0])//;
+#	$seq =~ s/revComp($seqsToTrimOff[1])$//;
     } else {
 	print STDERR "Warning! Subject sequences don't match sequence returned by blastdbcmd $header\t", join(",", @seqsToTrimOff), "\t", $seq, "\n"
     }
@@ -475,6 +486,15 @@ if($verbose) {
     print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
     
+
+sub revComp {
+    my $seq = shift;
+    $seq =~ tr/ACGTacgtYRWSKMDVHBXN/TGCAtgcaRYWSMKHBDVXN/;
+    $seq = reverse ($seq);
+    return $seq;
+}
+
+
 ##############################
 # POD
 ##############################
