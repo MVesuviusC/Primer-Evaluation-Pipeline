@@ -78,6 +78,7 @@ Target taxa needs to be a species, genus, family, order, class, phylum or kingdo
   * Change bsPrimerTree primer mismatch output so I can capture only on-target hits
   * put amplicon length into summary table
   * Make script to split primer file into multiple, file named by primer inside
+  * add " Vector " and " construct " to bannedwords?
 
 ### Libraries
 ```{r loadLibraries, cache = FALSE, eval = TRUE}
@@ -86,7 +87,7 @@ library(rmarkdown)
 library(knitrBootstrap)
 library(gridExtra)
 library(tidyverse)
-#library(ggwordcloud)
+library(ggwordcloud)
 theme_set(theme_bw())
 theme_update(plot.title = element_text(hjust = 0.5))
 ```
