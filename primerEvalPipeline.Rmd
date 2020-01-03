@@ -23,8 +23,9 @@ rmarkdown::render("primerEvalPipeline.Rmd",
     blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
     blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
     taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
-    threads = 6,
-))
+    threads = 6
+  )
+)
 
 rmarkdown::render("primerEvalPipeline.Rmd", 
   output_dir = "mam16SOut/",
@@ -261,28 +262,49 @@ Would like to instead plot number of mismatches for sub-taxa to show how bias mi
 ```{r plotPrimerMismatch, dependson = 'bsPrimerTree', eval = TRUE}
 primerMismatches <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatches.txt", sep = ""))
 
-primerMismatches$Primer <- gsub(":.+", "", primerMismatches$TotalMismatches)
-primerMismatches$Primer <- gsub("for", "Forward", primerMismatches$Primer)
-primerMismatches$Primer <- gsub("rev", "Reverse", primerMismatches$Primer)
-primerMismatches$TotalMismatches <- gsub(".+:", "", primerMismatches$TotalMismatches)
+primerMismatches$direction <- gsub("for", "Forward", primerMismatches$direction)
+primerMismatches$direction <- gsub("rev", "Reverse", primerMismatches$direction)
 
-P1 <- ggplot(primerMismatches, aes(x = TotalMismatches, y = Count)) + 
-          geom_bar(stat = "identity") + 
-          facet_wrap(~ Primer) +
-          ggtitle("Total number of mismatches in primer") +
-          xlab("") +
-          ylab("Number of sequences")
-
-P2 <- ggplot(primerMismatches, aes(x = TipMismatches, y = Count)) + 
-          geom_bar(stat = "identity") + 
-          facet_wrap(~ Primer) +
-          ggtitle("Mismatches in 3' end of primer") +
-          xlab("") +
-          ylab("Number of sequences")
-
-png(paste(params$outDir, "/figures/primerMismatches.png", sep = ""), width = 2000, height = 2000, res = 300)
-  grid.arrange(P1, P2, ncol = 1)
+png(paste(params$outDir, "/figures/primerTotalMismatches.png", sep = ""), width = 3000, height = 5000, res = 300)
+  primerMismatches %>% 
+  select(., class, order, family, direction, mismatchTotal) %>%
+  gather(., "Level", "Name", -direction, -mismatchTotal) %>%
+  filter(., is.na(Name) == FALSE) %>%
+  group_by(., direction, mismatchTotal, Level, Name) %>%
+  summarize(., Count = length(mismatchTotal)) %>%
+  ungroup(.) %>%
+  mutate(., Level = factor(Level, levels = c(c("class", "order", "family")))) %>%
+  ggplot(., aes(x = Name, y = mismatchTotal, fill = Count, label = Count)) + 
+      geom_tile() + 
+      facet_wrap(~ direction + Level, ncol = 1, scales = "free_x", strip.position = "left") + 
+      geom_text() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+      theme(legend.position = "none") +
+      ggtitle("Total number of primer mismatches\nNumber in each box is the number of hits with that many mismatches") +
+      xlab("") + 
+      ylab("")
 dev.off()
+
+png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width = 3000, height = 5000, res = 300)
+  primerMismatches %>% 
+  select(., class, order, family, direction, mismatch5Prime) %>%
+  gather(., "Level", "Name", -direction, -mismatch5Prime) %>%
+  filter(., is.na(Name) == FALSE) %>%
+  group_by(., direction, mismatch5Prime, Level, Name) %>%
+  summarize(., Count = length(mismatch5Prime)) %>%
+  ungroup(.) %>%
+  mutate(., Level = factor(Level, levels = c(c("class", "order", "family")))) %>%
+  ggplot(., aes(x = Name, y = mismatch5Prime, fill = Count, label = Count)) + 
+      geom_tile() + 
+      facet_wrap(~ direction + Level, ncol = 1, scales = "free_x", strip.position = "left") + 
+      geom_text() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+      theme(legend.position = "none") +
+      ggtitle("Total number of mismatches in the 5' end\nNumber in each box is the number of hits with that many mismatches") +
+      xlab("") + 
+      ylab("")
+dev.off()
+
 ```
 
 ### Filter unique seqs
