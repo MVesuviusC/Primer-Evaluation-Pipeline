@@ -132,9 +132,14 @@ while (my $input = <$inputFH>){
 
     print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
     print $ampliconLenFH $sGi, "\t", $sAmpLen, "\n";
+    
+    # Store mismatch info to parse out later once we have the taxa info
+    $primer1MismatchCount =~ s/:/\t/;
+    $primer2MismatchCount =~ s/:/\t/;
+    
 
-    $mismatchHash{$primer1MismatchCount . "\t" . $primer1Mismatch5PrimeTip}++; 
-    $mismatchHash{$primer2MismatchCount . "\t" . $primer2Mismatch5PrimeTip}++;
+    $mismatchHash{$sTaxids}{$primer1MismatchCount . "\t" . $primer1Mismatch5PrimeTip}++; 
+    $mismatchHash{$sTaxids}{$primer2MismatchCount . "\t" . $primer2Mismatch5PrimeTip}++;
 
     # Store hit seq and other end hit seqs for each hit so I can trim them off later
     @{ $seqTrimHash{$sGi} } = ($primer1SSeq, $primer2SSeq);
@@ -143,27 +148,28 @@ while (my $input = <$inputFH>){
 close $inputFH;
 close $blastDbInputFile;
 
-open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
+#open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
 
-######################
-### print out mismatch file
-print $mismatchFile "TotalMismatches\tTipMismatches\tCount\n";
+#    ######################
+#    ### print out mismatch file
+#print $mismatchFile "TotalMismatches\tTipMismatches\tCount\n";
 
-for my $mismatchEntry (keys %mismatchHash) {
-    print $mismatchFile $mismatchEntry, "\t", $mismatchHash{$mismatchEntry}, "\n";
-}
-close $mismatchFile;
+#for my $mismatchEntry (keys %mismatchHash) {
+#    print $mismatchFile $mismatchEntry, "\t", $mismatchHash{$mismatchEntry}, "\n";
+#}
+#close $mismatchFile;
 
 ######################
 ### Get sequence for each hit
 ### Also get taxonomic info and put into header
+
 if($verbose) {
     print STDERR "Getting amplicon sequence information using blastdbcmd.\n";
     my @time = localtime(time);
     print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }
 
-# connect to taxonomyDb created using makeTaxonomyDb.pl
+### connect to taxonomyDb created using makeTaxonomyDb.pl
 my $dsn      = "dbi:SQLite:dbname=$taxDb";
 my $user     = "";
 my $password = "";
@@ -173,12 +179,15 @@ my $dbh = DBI->connect($dsn, $user, $password, {
    AutoCommit       => 1,
 });
 
-
+### Set up taxa db query
 my $query = 'SELECT species, genus, family, "order", 
 		class, phylum, kingdom, superkingdom, tax_name FROM 
 		taxonomy WHERE tax_id == ?';
 my $sth = $dbh->prepare($query);
 
+### Put together command to get sequences 
+### output will have header with >gi_taxid \n sequence for each query
+### perl code switches "@" with newline
 my $blastDBCmdCmd = "blastdbcmd " . 
     "-target_only " . 
     "-db " . $blastDb . 
@@ -186,11 +195,20 @@ my $blastDBCmdCmd = "blastdbcmd " .
     "-outfmt \">\%g_\%T\@\%s\" " .
     "| perl -pe \'s/\@/\n/\' "; 
 
+### Array of data to print to speed up the program
 my @printable;
 
+### Go through sequences retrieved from blastDb and get the taxa info as it goes
 $/ = "\n>";
 open my $fastaWithTaxaFile, ">", $outDir . "seqsWithTaxa.fasta";
 open my $blastDbCmdResponse, "-|", $blastDBCmdCmd or die "blastdbcmd query failed\n";
+
+open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
+print $mismatchFile join("\t", "taxid", "superkingdom", "kingdom", "phylum", 
+			 "class", "order", "family", "genus", "species", 
+			 "direction", "mismatchTotal", "mismatch5Prime"), "\n";
+
+
 while(my $blastInput = <$blastDbCmdResponse>) {
     chomp $blastInput;
     $blastInput =~ s/^>//;
@@ -230,7 +248,7 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	print STDERR "Warning! Subject sequences don't match sequence returned by blastdbcmd $header\t", join(",", @seqsToTrimOff), "\t", $seq, "\n"
     }
 
-    # Get taxa info from database
+    ### Get taxa info from database
     $sth->execute($taxid); 
     
     my ($species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $tax_name);
@@ -246,8 +264,11 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	$tax_name     = "$row->{tax_name}";
     }
 
+
+    ### print out 
     if(defined($species)) {
-	if($species eq "NA") { # some of the entries in the tax db don't have species labeled >:-|
+	# some of the entries in the tax db don't have species labeled >:-|
+	if($species eq "NA") {
 	    $species = $tax_name;
 	}
 	$speciesSeqCountHash{$species}++;
@@ -287,6 +308,21 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	$taxNamesHash{kingdom}{$kingdom}++;
 	$taxNamesHash{superkingdom}{$superkingdom}++;
 
+
+	# Print out information on how many mismatches there are
+	for my $mismatch (keys %{ $mismatchHash{$taxid} } ) {
+	    print $mismatchFile $taxid . "\t" . 
+		                $superkingdom . "\t" . 
+				$kingdom . "\t" . 
+				$phylum . "\t" . 
+				$class . "\t" . 
+				$order . "\t" . 
+				$family . "\t" . 
+				$genus . "\t" . 
+				$species . "\t" .
+				$mismatch . "\n"; 
+	}
+
     } else {
 	print STDERR "Taxonomy not found for gi: $gi, taxid: $taxid\n";
 	print STDERR "Make sure your blast database and taxonomy database " . 
@@ -294,6 +330,12 @@ while(my $blastInput = <$blastDbCmdResponse>) {
     }
 }
 
+close $mismatchFile;
+close $blastDbCmdResponse;
+$dbh->disconnect;
+
+
+### Don't want to print out too many sequences for the alignment, so print out randomly if there are too many
 if($maxAlignedSeqs < scalar(@printable)) {
     # random print
     my $printChance = $maxAlignedSeqs / scalar(@printable);
@@ -309,9 +351,6 @@ if($maxAlignedSeqs < scalar(@printable)) {
 
 
 close $fastaWithTaxaFile;
-close $blastDbCmdResponse;
-
-$dbh->disconnect;
 
         ##### Need to keep in mind that the output fasta may  have multiple ">"s in the header
 $/ = "\n";
