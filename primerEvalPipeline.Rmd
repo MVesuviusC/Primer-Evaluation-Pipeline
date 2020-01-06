@@ -169,7 +169,7 @@ These are words found in species names that indicate that the species named is u
   * unidentified
 
 ```{r bannedWords, cache = FALSE, eval = TRUE}
-bannedWords <- c("sp.", "cf.", "isolate", "uncultured", "symbiont", "unidentified")
+bannedWords <- c("sp\\.", "cf\\.", "isolate", "uncultured", "symbiont", "unidentified")
 write(bannedWords, file = paste(params$outDir, "/bannedWords.txt", sep = ""), sep = "\t")
 ```
 
@@ -449,7 +449,7 @@ if(!targetLevel %in% colnames(potentialHits)) {
 potentialHits <- subset(potentialHits, get(targetLevel) == targetTaxa)
 
 # Get rid of hits with "banned" words
-potentialSpecies <- as.data.frame(potentialHits[grep(paste(bannedWords, collapse = " | "), potentialHits$species, perl = T, invert = T),])
+potentialSpecies <- as.data.frame(potentialHits[grep(paste(bannedWords, collapse = "|"), potentialHits$species, perl = T, invert = T),])
 
 write.table(potentialSpecies, file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
 ```
@@ -480,7 +480,7 @@ summaryTable <- primerDf
 
 ### Percent of on-target amplifiable hits
 taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""))
-taxaSummary <- taxaSummary[grep(paste(bannedWords, collapse = " | "), taxaSummary$species, invert = T),]
+taxaSummary <- taxaSummary[grep(paste(bannedWords, collapse = "|"), taxaSummary$species, invert = T),]
 
 ################################### should use outDir/didHit/SpeciesOnTarget.txt
 
