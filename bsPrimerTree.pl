@@ -148,17 +148,6 @@ while (my $input = <$inputFH>){
 close $inputFH;
 close $blastDbInputFile;
 
-#open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
-
-#    ######################
-#    ### print out mismatch file
-#print $mismatchFile "TotalMismatches\tTipMismatches\tCount\n";
-
-#for my $mismatchEntry (keys %mismatchHash) {
-#    print $mismatchFile $mismatchEntry, "\t", $mismatchHash{$mismatchEntry}, "\n";
-#}
-#close $mismatchFile;
-
 ######################
 ### Get sequence for each hit
 ### Also get taxonomic info and put into header
