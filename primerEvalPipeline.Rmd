@@ -22,7 +22,7 @@ rmarkdown::render("primerEvalPipeline.Rmd",
     primerFile = "examplePrimerInputFile.txt",
     blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
     blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
-    taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
+    taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db",
     threads = 6
   )
 )
@@ -34,8 +34,8 @@ rmarkdown::render("primerEvalPipeline.Rmd",
     primerFile = "examplePrimerInputMammal16S.txt",
     blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
     blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
-    taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
-    threads = 20
+    taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db",
+    threads = 30
   )
 )
 
@@ -46,11 +46,12 @@ rmarkdown::render("primerEvalPipeline.Rmd",
     primerFile = "examplePrimerInputPhlebovirus1.txt",
     blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
     blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
-    taxonomyDb = "/local/projects-t3/SerreDLab-3/cannonm3/eDNA/bsPrimerBlast/taxaDb/taxonomy.db",
-    threads = 35
+    taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db",
+    threads = 30
   )
 )
 
+R -e 'rmarkdown::render("primerEvalPipeline.Rmd", output_dir = "evalOut/", params = list(primerFile = "examplePrimerInputFile.txt", blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn", blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt", taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db", threads = 30))'
 
 
 # Primer evaluation
@@ -80,6 +81,7 @@ Target taxa needs to be a species, genus, family, order, class, phylum or kingdo
   * put amplicon length into summary table
   * Make script to split primer file into multiple, file named by primer inside
   * add " Vector " and " construct " to bannedwords?
+  * add cleanup option to delete processing files
 
 ### Libraries
 ```{r loadLibraries, cache = FALSE, eval = TRUE}
@@ -134,7 +136,6 @@ Sys.setenv(threads = params$threads)
    # need to check if directories exist
 ```{bash mkdirs, eval = TRUE}
 mkdir $outDir
-mkdir ${outDir}
 mkdir ${outDir}/didHit
 mkdir ${outDir}/reBlastOut
 mkdir ${outDir}/couldHaveHit
@@ -528,7 +529,8 @@ missedSpecies <- potentialHits[potentialHits$species %in% potentialSpecies[!pote
                         
 write.table(missedSpecies, file = paste(params$outDir, "/couldHaveHit/missedTaxa.txt", sep = ""), quote = F, sep = "\t", row.names = F)
 
-PercentFound <- (length(potentialSpecies) - length(missedSpecies)) / length(potentialSpecies)
+PercentFound <- (length(potentialSpecies) - length(missedSpecies)) / length(potentialSpecies) * 100
+summaryTable$PercentTargetCovered <- PercentFound 
 
 missedSummary <- potentialHits %>% 
   select(., -species) %>% 
