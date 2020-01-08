@@ -221,6 +221,7 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 
     my @revCompSeqsToTrimOff = (revComp($seqsToTrimOff[0]), revComp($seqsToTrimOff[1])); 
 
+    ###### I may need to just align the primers to the sequence instead of including all possible orientations here.... 
     if($seq =~ /^$seqsToTrimOff[0].+$seqsToTrimOff[1]$/) { 
 	$seq =~ s/^$seqsToTrimOff[0]//;
 	$seq =~ s/$seqsToTrimOff[1]$//;
@@ -228,11 +229,11 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	$seq =~ s/^$revCompSeqsToTrimOff[1]//;
 	$seq =~ s/$revCompSeqsToTrimOff[0]$//;
     } elsif($seq =~ /^$seqsToTrimOff[1].+$seqsToTrimOff[0]$/) {
-	$seq =~ s/^revComp($seqsToTrimOff[1])//;
-	$seq =~ s/revComp($seqsToTrimOff[0])$//;
-#    } elsif($seq =~ /^revComp($seqsToTrimOff[0]).+revComp($seqsToTrimOff[1])$/) {
-#	$seq =~ s/^revComp($seqsToTrimOff[0])//;
-#	$seq =~ s/revComp($seqsToTrimOff[1])$//;
+	$seq =~ s/^$seqsToTrimOff[1]//;
+	$seq =~ s/$seqsToTrimOff[0]$//;
+    } elsif($seq =~ /^$revCompSeqsToTrimOff[0].+$revCompSeqsToTrimOff[1]$/) {
+	$seq =~ s/^$revCompSeqsToTrimOff[0]//;
+	$seq =~ s/$revCompSeqsToTrimOff[1]$//;
     } else {
 	print STDERR "Warning! Subject sequences don't match sequence returned by blastdbcmd $header\t", join(",", @seqsToTrimOff), "\t", $seq, "\n"
     }
