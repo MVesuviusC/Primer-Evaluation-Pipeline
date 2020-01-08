@@ -219,24 +219,7 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 
     my @seqsToTrimOff = @{ $seqTrimHash{$gi} };
 
-    my @revCompSeqsToTrimOff = (revComp($seqsToTrimOff[0]), revComp($seqsToTrimOff[1])); 
-
-    ###### I may need to just align the primers to the sequence instead of including all possible orientations here.... 
-    if($seq =~ /^$seqsToTrimOff[0].+$seqsToTrimOff[1]$/) { 
-	$seq =~ s/^$seqsToTrimOff[0]//;
-	$seq =~ s/$seqsToTrimOff[1]$//;
-    } elsif($seq =~ /^$revCompSeqsToTrimOff[1].+$revCompSeqsToTrimOff[0]$/) {
-	$seq =~ s/^$revCompSeqsToTrimOff[1]//;
-	$seq =~ s/$revCompSeqsToTrimOff[0]$//;
-    } elsif($seq =~ /^$seqsToTrimOff[1].+$seqsToTrimOff[0]$/) {
-	$seq =~ s/^$seqsToTrimOff[1]//;
-	$seq =~ s/$seqsToTrimOff[0]$//;
-    } elsif($seq =~ /^$revCompSeqsToTrimOff[0].+$revCompSeqsToTrimOff[1]$/) {
-	$seq =~ s/^$revCompSeqsToTrimOff[0]//;
-	$seq =~ s/$revCompSeqsToTrimOff[1]$//;
-    } else {
-	print STDERR "Warning! Subject sequences don't match sequence returned by blastdbcmd $header\t", join(",", @seqsToTrimOff), "\t", $seq, "\n"
-    }
+    $seq = trimPrimers($seq, $seqsToTrimOff[0], $seqsToTrimOff[1], $gi);
 
     ### Get taxa info from database
     $sth->execute($taxid); 
@@ -523,6 +506,70 @@ sub revComp {
     return $seq;
 }
 
+
+sub trimPrimers {
+    my $seq = $_[0];
+    my $primer1 = $_[1];
+    my $primer2 = $_[2];
+    my $gi = $_[3];
+
+    my $RCprimer1 = revComp($primer1);
+
+    if($seq =~ /^$primer1/) {                               # primer 1 is at 5' end
+	$seq =~ s/^$primer1//;
+	$seq = trimPrimer2($seq, $primer2, $gi, "3prime");
+    } elsif($seq =~ /^$RCprimer1/) {                        # primer 1 is at 5' end RC
+	$seq =~ s/^$RCprimer1//;
+	$seq = trimPrimer2($seq, $primer2, $gi, "3prime");
+    } elsif($seq =~ /$primer1$/) {                          # primer 1 is at 3' end
+	$seq =~ s/$primer1$//;
+	$seq = trimPrimer2($seq, $primer2, $gi, "5prime");
+    } elsif($seq =~ /$RCprimer1$/) {                        # primer 1 is at 3' end RC
+	$seq =~ s/$RCprimer1$//;
+	$seq = trimPrimer2($seq, $primer2, $gi, "5prime");
+    } else {                                                # primer 1 not found
+	print STDERR "First primer not found for trimming\n", $gi, "\t", $primer1, "\t", $seq, "\n\n";
+	my $newSeq = trimPrimer2($seq, $primer2, $gi, "3prime");
+
+	if(length($newSeq) != length($seq)) { # primer2 was trimmed
+	    $seq = $newSeq;
+	} else {                              # primer2 was not trimmed, try other end
+	    $seq = trimPrimer2($seq, $primer2, $gi, "5prime");
+	}
+    }
+    return $seq;
+}
+
+sub trimPrimer2 {
+    my $seq = $_[0];
+    my $primer2 = $_[1];
+    my $gi = $_[2];
+    my $end = $_[3];
+
+    my $RCprimer2 = revComp($primer2);
+	
+    if($end eq "3prime") {
+	if($seq =~ /$primer2$/) {
+	    $seq =~ s/$primer2$//;
+	} elsif($seq =~ /$RCprimer2$/) {
+	    $seq =~ s/$RCprimer2$//;
+	} else {
+	    print STDERR "Second sequence not found for trimming\n\n";
+	    print STDERR $gi, "\t", $primer2, "\t", $seq, "\n";
+	}
+    } else {
+	if($seq =~ /^$primer2/) {
+	    $seq =~ s/^$primer2//;
+	} elsif($seq =~ /^$RCprimer2/) {
+	    $seq =~ s/^$RCprimer2//;
+	} else {
+	    print STDERR "Second sequence not found for trimming\n\n";
+	    print STDERR $gi, "\t", $primer2, "\t", $seq, "\n";
+	}
+
+    }
+    return $seq;
+}
 
 ##############################
 # POD
