@@ -53,6 +53,13 @@ rmarkdown::render("primerEvalPipeline.Rmd",
 
 R -e 'rmarkdown::render("primerEvalPipeline.Rmd", output_dir = "evalOut/", params = list(primerFile = "examplePrimerInputFile.txt", blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn", blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt", taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db", threads = 30))'
 
+qsubStub <- "echo \"ls\" | qsub -cwd -P dserre-lab -o parasitePrimerEval/qsubOut/alignQsubStdOut.txt -e parasitePrimerEval/qsubOut/alignQsubStdErr.txt -l mem_free=0.1G -q threaded.q -pe thread 2 -N primerEval -- -lh"
+
+
+
+commandStub <- 'use R-3.5.1; R -e \' rmarkdown::render("primerEvalPipeline.Rmd", output_dir = "evalOut/", params = list(primerFile = "examplePrimerInputFile.txt", blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn", blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt", taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db", threads = 30))\''
+
+
 
 # Primer evaluation
 
@@ -75,13 +82,12 @@ Target taxa needs to be a species, genus, family, order, class, phylum or kingdo
   * Make sure taxaTarget entry can handle lowercase
   * Implement checks that each step succeeded
   * Output a warning if the reblast step has too many reads (define too many)
-  * Implement measurement of distance to most similar species for each species and make average
-    * break down by average distance to nearest species, genus, family? 
   * Change bsPrimerTree primer mismatch output so I can capture only on-target hits
   * put amplicon length into summary table
   * Make script to split primer file into multiple, file named by primer inside
   * add " Vector " and " construct " to bannedwords?
   * add cleanup option to delete processing files
+  * Delete unneccesary variables at end of each chunk to save on memory usage
 
 ### Libraries
 ```{r loadLibraries, cache = FALSE, eval = TRUE}
@@ -195,17 +201,6 @@ This outputs:
  #################### Need to make bsPrimerTree output full taxonomy of all amplifiable taxa
 
 
-################### figure out how/if to pull in these perl scripts since they won't be in the folder
-#```{r, echo = F, cache = FALSE}
-#read_chunk('bsPrimerBlast.pl', labels = 'bsPrimerBlastCode')
-#```
-#```{perl bsPrimerBlastCode, eval = FALSE, cache = FALSE}
-#```
-#```{r, echo = F, cache = FALSE}
-#read_chunk('bsPrimerTree.pl', labels = 'bsPrimerTreeCode')
-#```
-#```{perl bsPrimerTreeCode, eval = FALSE, cache = FALSE}
-#```
 
 ```{bash bsPrimerTree, eval = TRUE}
 bsPrimerBlast.pl \
@@ -213,6 +208,8 @@ bsPrimerBlast.pl \
       --blastDb ${blastDb} \
       --blastVer ${blastLoc} \
       --proc ${threads} \
+      --minAmpLen 50 \
+      --maxAmpLen 1000 \
       | \
     bsPrimerTree.pl \
       --inFile - \
@@ -221,7 +218,8 @@ bsPrimerBlast.pl \
       --outDir ${outDir}/bsPrimerTreeOut \
       --threads ${threads} \
       --noPlots \
-      --maxSeqsPerSpecies 3
+      --maxSeqsPerSpecies 4 \
+      --maxAlignedSeqs 15000
 ```
 
 ### Plot amplicon length distribution 
@@ -276,9 +274,9 @@ png(paste(params$outDir, "/figures/primerTotalMismatches.png", sep = ""), width 
   ungroup(.) %>%
   mutate(., Level = factor(Level, levels = c(c("class", "order", "family")))) %>%
   ggplot(., aes(x = Name, y = mismatchTotal, fill = Count, label = Count)) + 
-      geom_tile() + 
+      geom_tile(color = "white") + 
       facet_wrap(~ direction + Level, ncol = 1, scales = "free_x", strip.position = "left") + 
-      geom_text() +
+      geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 1.5) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
       theme(legend.position = "none") +
       ggtitle("Total number of primer mismatches\nNumber in each box is the number of hits with that many mismatches") +
@@ -296,9 +294,9 @@ png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width
   ungroup(.) %>%
   mutate(., Level = factor(Level, levels = c(c("class", "order", "family")))) %>%
   ggplot(., aes(x = Name, y = mismatch5Prime, fill = Count, label = Count)) + 
-      geom_tile() + 
+      geom_tile(color = "white") + 
       facet_wrap(~ direction + Level, ncol = 1, scales = "free_x", strip.position = "left") + 
-      geom_text() +
+      geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 1.5) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
       theme(legend.position = "none") +
       ggtitle("Total number of mismatches in the 5' end\nNumber in each box is the number of hits with that many mismatches") +
@@ -307,6 +305,41 @@ png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width
 dev.off()
 
 ```
+
+```{r plotDistanceSummary, dependson = 'bsPrimerTree', eval = TRUE}
+distance <- read.delim(paste(params$outDir, "bsPrimerTreeOut/distanceSummary.txt", sep = ""))
+
+distanceSummary <- distance %>%
+  mutate(., OnTarget = grepl(targetTaxa, distance[[targetLevel]])) %>% 
+  group_by(., CompLevel, OnTarget) %>%
+  mutate(., Average = sum(MeanDist * nCompared) / sum(nCompared)) %>%
+  ungroup()
+  
+levelsToUse <- c("family", "genus", "species")
+
+for(levelInUse in levelsToUse) {
+  png(paste(params$outDir, "/figures/distancePlot_", levelInUse, ".png", sep = ""), width = 5000, height = 3000, res = 300)
+  print(ggplot(subset(distanceSummary, CompLevel == levelInUse), aes(x = get(levelInUse), y = MeanDist, fill = OnTarget)) + 
+    geom_bar(stat = "identity") + 
+    geom_hline(data = subset(distanceSummary, CompLevel == levelInUse & OnTarget == TRUE), aes(yintercept = Average), size = 2, color = "red") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    ggtitle(paste(str_to_title(levelInUse), "\nDistance between individual sequences", "\nRed line is average for on-target sequences")) +
+    xlab(levelInUse)
+    )
+  dev.off()
+  
+  tempDf <- distanceSummary %>% 
+    select(., CompLevel, OnTarget, Average) %>% 
+    distinct(.) %>% 
+    filter(., OnTarget == TRUE, CompLevel == levelInUse)
+  
+  primerDf[[paste("MeanDist_", levelInUse, sep = "")]] <- tempDf$Average[1]
+}
+
+
+```
+
+
 
 ### Filter unique seqs
 Keep unique sequences per species and blast those, to reduce duplicate hits within a species prior to other analyses to avoid eg. human causing massive skew of the data. 
