@@ -72,6 +72,9 @@ my %taxNamesHash;
 my %taxCountHash;
 my %mismatchHash;
 my %speciesSeqCountHash;
+my %alignedSeqHash;
+my %distHash;
+
 
 ##############################
 # Code
@@ -131,7 +134,7 @@ while (my $input = <$inputFH>){
 	= split "\t", $input;
 
     print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
-    print $ampliconLenFH $sGi, "\t", $sAmpLen, "\n";
+    print $ampliconLenFH $sTaxids, "\t", $sAmpLen, "\n";
     
     # Store mismatch info to parse out later once we have the taxa info
     $primer1MismatchCount =~ s/:/\t/;
@@ -244,6 +247,7 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	if($species eq "NA") {
 	    $species = $tax_name;
 	}
+
 	$speciesSeqCountHash{$species}++;
 	
 	my $newHeader = ">"   . # header with taxa info and unique number to make alignment program happy
@@ -258,7 +262,7 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 			"_" . $speciesSeqCountHash{$species};
 			
 	# put it into printable array if I haven't seen too many of that species
-	if($speciesSeqCountHash{$species} < $maxSeqPerSp) {
+	if($speciesSeqCountHash{$species} <= $maxSeqPerSp) {
 	    push @printable, $newHeader . "\n" . $seq;
 	}
 	
@@ -309,7 +313,7 @@ $dbh->disconnect;
 
 
 ### Don't want to print out too many sequences for the alignment, so print out randomly if there are too many
-if($maxAlignedSeqs < scalar(@printable)) {
+if($maxAlignedSeqs <= scalar(@printable)) {
     # random print
     my $printChance = $maxAlignedSeqs / scalar(@printable);
     for my $entry (@printable) {
@@ -364,6 +368,110 @@ if($verbose) {
 }
 
 system($mafftCmd);
+
+
+#######################
+### Calculate nucleotide distance between species within various levels
+local $/ = "\n>";
+
+open my $alignedFastaFH, $outDir . "seqsWithTaxaAligned.fasta" or die "Could not open aligned fasta output\n";
+open my $distOutputFH, ">", $outDir . "distanceSummary.txt";
+
+print $distOutputFH "CompLevel\tsuperkingdom\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\tMeanDist\tnCompared\n";
+
+while(my $fasta = <$alignedFastaFH>) {
+  chomp $fasta;
+  my ($header,@sequences) = split "\n", $fasta;
+  $header =~ s/>//;
+
+  # remove these parts of the header to clean up the output
+  print STDERR $header, "\n";
+  $header =~ s/^s-//;
+  $header =~ s/:[kpcofgs]k*-/:/g;
+  print STDERR $header, "\n";
+  
+
+  my $seq = join("", @sequences);
+  $seq = lc($seq);
+
+  my ($sp, $sk, $k, $p, $c, $o, $f, $g, undef) = split ":", $header;
+
+  #print STDERR "Need to fix nCompared output in distanceSummary.txt\n\n";
+  for my $fastaEntry (keys %alignedSeqHash) {
+      # Only compare when either family, genus or species is the same between sequences
+      if($alignedSeqHash{$fastaEntry}{family} eq $f || 
+	     $alignedSeqHash{$fastaEntry}{genus} eq $g || 
+	     $alignedSeqHash{$fastaEntry}{species} eq $sp) {
+
+	  my $dist = dist($alignedSeqHash{$fastaEntry}{seq}, $seq);
+	  # calc distance 
+	  if($alignedSeqHash{$fastaEntry}{family} eq $f && $f ne "NA") {
+	      my $keyToUse = "family\t" . 
+			    $sk . "\t" . 
+			    $k . "\t" . 
+			    $p . "\t" . 
+			    $c . "\t" . 
+			    $o . "\t" . 
+			    $f . "\t-\t-";
+
+	      $distHash{$keyToUse}{sum} += $dist; 
+	      # Check if $distHash entry exists, if not, initialize at 1
+	      if(!exists($distHash{$keyToUse}{count})) {
+		  $distHash{$keyToUse}{count} = 1;
+	      }
+	      $distHash{$keyToUse}{count}++;
+	  }
+	  if($alignedSeqHash{$fastaEntry}{genus} eq $g && $g ne "NA"){
+	      my $keyToUse = "genus\t" . 
+			    $sk . "\t" . 
+			    $k . "\t" . 
+			    $p . "\t" . 
+			    $c . "\t" . 
+			    $o . "\t" . 
+			    $f . "\t" .
+			    $g . "\t-";
+
+	      $distHash{$keyToUse}{sum} += $dist; 
+	      if(!exists($distHash{$keyToUse}{count})) {
+		  $distHash{$keyToUse}{count} = 1;
+	      }
+	      $distHash{$keyToUse}{count}++;
+	  }
+	  if($alignedSeqHash{$fastaEntry}{species} eq $sp && $sp ne "NA"){
+	      my $keyToUse = "species\t" . 
+			    $sk . "\t" . 
+			    $k . "\t" . 
+			    $p . "\t" . 
+			    $c . "\t" . 
+			    $o . "\t" . 
+			    $f . "\t" .
+			    $g . "\t" . 
+			    $sp;
+
+	      $distHash{$keyToUse}{sum} += $dist; 
+	      if(!exists($distHash{$keyToUse}{count})) {
+		  $distHash{$keyToUse}{count} = 1;
+	      }
+	      $distHash{$keyToUse}{count}++;
+	  }
+      }
+  }
+  #print $sp, "\n";
+  # store the new sequence for remaining comparisons
+  $alignedSeqHash{$header}{seq} = $seq;
+  $alignedSeqHash{$header}{family} = $f;
+  $alignedSeqHash{$header}{genus} = $g;
+  $alignedSeqHash{$header}{species} = $sp;
+}
+
+close $alignedFastaFH;
+
+for my $distLevel (keys %distHash) {
+    print $distOutputFH $distLevel, "\t", $distHash{$distLevel}{sum} / $distHash{$distLevel}{count}, "\t", $distHash{$distLevel}{count}, "\n";
+}
+
+    close $distOutputFH;
+
 
 
 #######################
@@ -569,6 +677,30 @@ sub trimPrimer2 {
 
     }
     return $seq;
+}
+
+sub dist {
+    my $seq1 = $_[0];
+    my $seq2 = $_[1];
+    
+    if(length($seq1) != length($seq2)) {
+	print STDERR "compared sequences differ in length\n";
+	die;
+    }
+    
+    my $dist = 0;
+    
+    my @seq1Array = split("", $seq1);
+    my @seq2Array = split("", $seq2);
+    
+    for(my $i = 0; $i < scalar(@seq1Array); $i++) {
+	if($seq1Array[$i] ne $seq2Array[$i]) {
+	    if($seq1Array[$i] !~ /[nN-]/ && $seq2Array[$i] !~ /[nN-]/) {
+		$dist++;
+	    }
+	}
+    }
+    return $dist;
 }
 
 ##############################
