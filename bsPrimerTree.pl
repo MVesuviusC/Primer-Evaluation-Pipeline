@@ -74,6 +74,8 @@ my %mismatchHash;
 my %speciesSeqCountHash;
 my %alignedSeqHash;
 my %distHash;
+my %ampLenHash;
+my %taxaHash;
 
 
 ##############################
@@ -108,7 +110,6 @@ if($verbose) {
 }
 
 open my $blastDbInputFile, ">", $outDir . "seqsToGet.txt";
-open my $ampliconLenFH, ">", $outDir . "ampliconLengths.txt";
 
 open my $inputFH, "$inFile" or die "Could not open input\nWell, crap\n";
 my $header = <$inputFH>; 
@@ -134,7 +135,12 @@ while (my $input = <$inputFH>){
 	= split "\t", $input;
 
     print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
-    print $ampliconLenFH $sTaxids, "\t", $sAmpLen, "\n";
+
+    # some taxids have two taxids separated by ";" - need to deal with this better at some point 
+    $sTaxids =~ s/;.+//; 
+    
+    # store amplicon length until I have taxa info
+    $ampLenHash{$sTaxids}{$sAmpLen}++;
     
     # Store mismatch info to parse out later once we have the taxa info
     $primer1MismatchCount =~ s/:/\t/;
@@ -211,14 +217,13 @@ while(my $blastInput = <$blastDbCmdResponse>) {
     
     my $taxid = $header;
     $taxid =~ s/.+_//;
+    $taxid =~ s/;.+//; # some entries have more than 1 taxid - need to deal with this better at some point.... 
 
     ### use the subject sequences given by bsPrimerBlast to trim primer sequence aligned portion off sequence 
 
     ###
     ############  See Haikel's Nege2 primers, but the returned sequence/primers may need to be rev comp'd to find the match for trimming
     ### Negevirus_group2_F GTTGCWGGTCACGGTAARAC	Negevirus_group2_R CRTCAGCWGGAATWCGATAC
-
-    ### Check this if else stack for logic later ############################
 
     my @seqsToTrimOff = @{ $seqTrimHash{$gi} };
 
@@ -250,6 +255,9 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 
 	$speciesSeqCountHash{$species}++;
 	
+	# store taxa info for ampLen printing
+	$taxaHash{$taxid} = join("\t", $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $species);
+
 	my $newHeader = ">"   . # header with taxa info and unique number to make alignment program happy
 			"s-"  . $species . ":" .
 			"sk-" . $superkingdom . ":" .
@@ -311,6 +319,23 @@ close $mismatchFile;
 close $blastDbCmdResponse;
 $dbh->disconnect;
 
+##########################
+### Print out amplicon length info with taxa
+open my $ampliconLenFH, ">", $outDir . "ampliconLengths.txt";
+print $ampliconLenFH join("\t", "taxid", "length", "count", "superkingdom", "kingdom", "phylum", 
+			 "class", "order", "family", "genus", "species"), "\n";
+
+for my $taxid (keys %ampLenHash) {
+    if(exists($taxaHash{$taxid})) {
+	for my $length (keys %{ $ampLenHash{$taxid} }) {
+	    print $ampliconLenFH join("\t", $taxid, $length, $ampLenHash{$taxid}{$length}, $taxaHash{$taxid}), "\n";
+	}
+    } else {
+	print STDERR "Taxa info for taxid ", $taxid, " not available during amplicon length file output\n";
+    }
+}
+
+close $ampliconLenFH;
 
 ### Don't want to print out too many sequences for the alignment, so print out randomly if there are too many
 if($maxAlignedSeqs <= scalar(@printable)) {
@@ -385,11 +410,8 @@ while(my $fasta = <$alignedFastaFH>) {
   $header =~ s/>//;
 
   # remove these parts of the header to clean up the output
-  print STDERR $header, "\n";
   $header =~ s/^s-//;
   $header =~ s/:[kpcofgs]k*-/:/g;
-  print STDERR $header, "\n";
-  
 
   my $seq = join("", @sequences);
   $seq = lc($seq);
