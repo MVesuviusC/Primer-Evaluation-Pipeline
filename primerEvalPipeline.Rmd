@@ -9,6 +9,7 @@ params:
   blastDb: nt
   taxonomyDb: taxonomyDb
   threads: 1
+  cleanup: FALSE
 ---
 
 
@@ -59,6 +60,7 @@ qsubStub <- "echo \"ls\" | qsub -cwd -P dserre-lab -o parasitePrimerEval/qsubOut
 
 commandStub <- 'use R-3.5.1; R -e \' rmarkdown::render("primerEvalPipeline.Rmd", output_dir = "evalOut/", params = list(primerFile = "examplePrimerInputFile.txt", blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn", blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt", taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db", threads = 30))\''
 
+perl scripts/batchQsub.pl --input parasitePrimersInput.txt --outDir parasiteTest
 
 
 # Primer evaluation
@@ -82,12 +84,12 @@ Target taxa needs to be a species, genus, family, order, class, phylum or kingdo
   * Make sure taxaTarget entry can handle lowercase
   * Implement checks that each step succeeded
   * Output a warning if the reblast step has too many reads (define too many)
-  * Change bsPrimerTree primer mismatch output so I can capture only on-target hits
-  * put amplicon length into summary table
-  * Make script to split primer file into multiple, file named by primer inside
   * add " Vector " and " construct " to bannedwords?
   * add cleanup option to delete processing files
   * Delete unneccesary variables at end of each chunk to save on memory usage
+  * Style consistent with tidyverse guide
+  * mismatch plot -> fix coloring of taxa levels above targetLevel
+    * Check that this issue isn't shared with other plots/summaries
 
 ### Libraries
 ```{r loadLibraries, cache = FALSE, eval = TRUE}
@@ -153,7 +155,7 @@ columns are:
 primerNameF primerF primerNameR primerR targetTaxa
 
 ```{r getPrimers, cache = FALSE, eval = TRUE}
-primerDf <- read.delim(params$primerFile, header = FALSE, sep = "\t")
+primerDf <- read_delim(params$primerFile, "\t", col_names=F)
 colnames(primerDf) <- c("PrimerFName", "PrimerF", "PrimerRName", "PrimerR", "TargetTaxa", "TargetLevel")
 primerDf
 targetTaxa <- as.character(primerDf$TargetTaxa[1]) # first letter should be capitalized - put in check
@@ -162,6 +164,9 @@ targetLevel <- tolower(as.character(primerDf$TargetLevel[1])) # needs to be lowe
 Sys.setenv(targetTaxa = targetTaxa)
 
 # check if primer file is in the right format and if not knit_exit()
+
+# start creation of summary table
+summaryTable <- as_tibble(primerDf)
 ```
 
 
@@ -231,14 +236,16 @@ ampLenDf <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/ampliconLengths.tx
 ampLenDf$onTarget <- grepl(targetTaxa, ampLenDf[[targetLevel]])
 
 png(paste(params$outDir, "/figures/ampliconLens.png", sep = ""), width = 2500, height = 2500, res = 300)
-  ggplot(ampLenDf, aes(x = length, y = count, color = onTarget)) + 
+  ggplot(ampLenDf, aes(x = as.numeric(length), y = count, fill = onTarget)) + 
     geom_bar(stat = "identity") +
     ggtitle("Amplicon Lengths") +
     xlab("Amplicon Length (bp)") + 
     ylab("Count") + facet_wrap(~ onTarget, ncol = 1, scales = "free_y") +
-    labs(color = "On target") +
+    labs(fill = "On target") +
     scale_x_continuous(breaks = round(seq(0, max(ampLenDf$length), by = 50), 1))
 dev.off()
+
+summaryTable$MedianOnTargetAmpLen <- median(subset(ampLenDf, onTarget == TRUE)$length)
 
 ```
 
@@ -263,60 +270,65 @@ write.table(bsPrimerTreeHits, file = paste(params$outDir, "/didHit/SpeciesOnTarg
 ```
 
 ### Plot primer mismatch counts
-Would like to instead plot number of mismatches for sub-taxa to show how bias might manifest
+Would like to also plot number of mismatches for sub-taxa to show how bias might manifest
 ```{r plotPrimerMismatch, dependson = 'bsPrimerTree', eval = TRUE}
-primerMismatches <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatches.txt", sep = ""))
+primerMismatches <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatches.txt", sep = ""), stringsAsFactors = FALSE)
 
 primerMismatches$direction <- gsub("for", "Forward", primerMismatches$direction)
 primerMismatches$direction <- gsub("rev", "Reverse", primerMismatches$direction)
 
-png(paste(params$outDir, "/figures/primerTotalMismatches.png", sep = ""), width = 3000, height = 5000, res = 300)
+primerMismatches$OnTarget <- "Off-target"
+primerMismatches$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <- "On-target"
+
+
+### plots
+png(paste(params$outDir, "/figures/primerTotalMismatches.png", sep = ""), width = 8000, height = 5000, res = 300)
   primerMismatches %>% 
-  select(., class, order, family, direction, mismatchTotal) %>%
-  gather(., "Level", "Name", -direction, -mismatchTotal) %>%
+  select(., class, order, family, direction, mismatchTotal, OnTarget) %>%
+  gather(., "Level", "Name", -direction, -mismatchTotal, -OnTarget) %>%
   filter(., is.na(Name) == FALSE) %>%
-  group_by(., direction, mismatchTotal, Level, Name) %>%
+  group_by(., direction, mismatchTotal, Level, Name, OnTarget) %>%
   summarize(., Count = length(mismatchTotal)) %>%
   ungroup(.) %>%
   mutate(., Level = factor(Level, levels = c(c("class", "order", "family")))) %>%
   ggplot(., aes(x = Name, y = mismatchTotal, fill = Count, label = Count)) + 
-      geom_tile(color = "white") + 
-      facet_wrap(~ direction + Level, ncol = 1, scales = "free_x", strip.position = "left") + 
+      geom_tile(size = 1, color = "white") + 
+      facet_wrap(~ direction + Level + OnTarget, ncol = 2, scales = "free_x", strip.position = "left") + 
       geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 1.5) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
-      theme(legend.position = "none") +
-      ggtitle("Total number of primer mismatches\nNumber in each box is the number of hits with that many mismatches") +
+      ggtitle("Total number of primer mismatches\nNumber in each box is the number of sequences with that many mismatches") +
       xlab("") + 
       ylab("")
 dev.off()
 
-png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width = 3000, height = 5000, res = 300)
+png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width = 8000, height = 5000, res = 300)
   primerMismatches %>% 
-  select(., class, order, family, direction, mismatch5Prime) %>%
-  gather(., "Level", "Name", -direction, -mismatch5Prime) %>%
+  select(., class, order, family, direction, mismatch5Prime, OnTarget) %>%
+  gather(., "Level", "Name", -direction, -mismatch5Prime, -OnTarget) %>%
   filter(., is.na(Name) == FALSE) %>%
-  group_by(., direction, mismatch5Prime, Level, Name) %>%
+  group_by(., direction, mismatch5Prime, Level, Name, OnTarget) %>%
   summarize(., Count = length(mismatch5Prime)) %>%
   ungroup(.) %>%
   mutate(., Level = factor(Level, levels = c(c("class", "order", "family")))) %>%
   ggplot(., aes(x = Name, y = mismatch5Prime, fill = Count, label = Count)) + 
-      geom_tile(color = "white") + 
-      facet_wrap(~ direction + Level, ncol = 1, scales = "free_x", strip.position = "left") + 
+      geom_tile(size = 1, color = "white") + 
+      facet_wrap(~ direction + Level + OnTarget, ncol = 2, scales = "free_x", strip.position = "left") + 
       geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 1.5) +
       theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
-      theme(legend.position = "none") +
-      ggtitle("Total number of mismatches in the 5' end\nNumber in each box is the number of hits with that many mismatches") +
+      ggtitle("Total number of mismatches in the 5' end\nNumber in each box is the number of sequences with that many mismatches") +
       xlab("") + 
       ylab("")
 dev.off()
 
+summaryTable$MeanOnTarget5PrimeMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatch5Prime)
+summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatchTotal)
 ```
 
 ```{r plotDistanceSummary, dependson = 'bsPrimerTree', eval = TRUE}
 distance <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/distanceSummary.txt", sep = ""))
+distance$OnTarget <- grepl(targetTaxa, distance[[targetLevel]])
 
 distanceSummary <- distance %>%
-  mutate(., OnTarget = grepl(targetTaxa, distance[[targetLevel]])) %>% 
   group_by(., CompLevel, OnTarget) %>%
   mutate(., Average = sum(MeanDist * nCompared) / sum(nCompared)) %>%
   ungroup()
@@ -333,6 +345,8 @@ for(levelInUse in levelsToUse) {
     xlab(levelInUse)
     )
   dev.off()
+  
+  summaryTable[[paste("MeanOnTargetDistBetweenSeqsWithinEach", str_to_title(levelInUse), sep = "")]] <- subset(distanceSummary, OnTarget == TRUE & CompLevel == levelInUse)$Average[1]
   
   #tempDf <- distanceSummary %>% 
   #  select(., CompLevel, OnTarget, Average) %>% 
@@ -516,21 +530,19 @@ Primer taxonomic specificity
   output/blast/topHitSummary/species/${base}Counts.txt
 
 ```{r makingSummaryTable, eval = TRUE}
-summaryTable <- primerDf
-
 ### Percent of on-target amplifiable hits
-taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""))
+taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""), stringsAsFactors = FALSE)
 taxaSummary <- taxaSummary[grep(paste(bannedWords, collapse = "|"), taxaSummary$species, invert = T),]
 
 ################################### should use outDir/didHit/SpeciesOnTarget.txt
 
 taxaSummaryOnTarget <- subset(taxaSummary, get(targetLevel) == targetTaxa)
 
-summaryTable$onTargetSpeciesAmplifiedCount <- sum(taxaSummary[[targetLevel]] == targetTaxa, na.rm = T)
+summaryTable$OnTargetSpeciesAmplifiedCount <- sum(taxaSummary[[targetLevel]] == targetTaxa, na.rm = T)
 
-summaryTable$allSpeciesAmplifiedCount <- nrow(taxaSummary)
+summaryTable$AllSpeciesAmplifiedCount <- nrow(taxaSummary)
 
-summaryTable$percentAmplifiedOnTarget <- 100 * (summaryTable$onTargetSpeciesAmplifiedCount / summaryTable$allSpeciesAmplifiedCount)
+summaryTable$PercentAmplifiedOnTarget <- 100 * (summaryTable$OnTargetSpeciesAmplifiedCount / summaryTable$AllSpeciesAmplifiedCount)
 
 
 ######  Make word cloud plot of taxa
@@ -560,7 +572,7 @@ dev.off()
 
 
 #### Species that could have been amplified
-potentialHits <- read.delim(file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), header = T)
+potentialHits <- read.delim(file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), header = T, stringsAsFactors = FALSE)
 potentialSpecies <- as.character(unique(potentialHits$species))
 potentialHits$WasHit <- potentialHits$species %in% potentialSpecies[potentialSpecies %in% taxaSummaryOnTarget$species]
 
@@ -570,7 +582,7 @@ missedSpecies <- potentialHits[potentialHits$species %in% potentialSpecies[!pote
 write.table(missedSpecies, file = paste(params$outDir, "/couldHaveHit/missedTaxa.txt", sep = ""), quote = F, sep = "\t", row.names = F)
 
 PercentFound <- (length(potentialSpecies) - nrow(missedSpecies)) / length(potentialSpecies) * 100
-summaryTable$PercentTargetCovered <- PercentFound 
+summaryTable$PercentKnownSeqsAmplified <- PercentFound 
 
 missedSummary <- potentialHits %>% 
   select(., -species) %>% 
@@ -587,12 +599,15 @@ ggplot(missedSummary, aes(x = reorder(Taxa, -PercentHit), y = PercentHit * 100))
   facet_wrap(~ Level, scales = "free_x", ncol = 1) +
   xlab("") + 
   ylab("Percent amplifiable") +
+  ylim(0, 100) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 dev.off()
 
 ### Taxonomic specificity
-topHitMeans <- read.delim(file = paste(params$outDir, "/topHitMeans.txt", sep = ""), header = T)
-topHitMeans$TaxaLevel <- paste(topHitMeans$TaxaLevel, "- Mean#Taxa/Hit")
+pluralWords <- list(Order = "Orders", Family = "Families", Species = "Species", Genus = "Genera")
+
+topHitMeans <- read.delim(file = paste(params$outDir, "/topHitMeans.txt", sep = ""), header = T, stringsAsFactors = FALSE)
+topHitMeans$TaxaLevel <- as.character(lapply(topHitMeans$TaxaLevel, function(x) paste("MeanNum", pluralWords[[x]], "PerTestQuery", sep = "")))
 rownames(topHitMeans) <- topHitMeans$TaxaLevel
 topHitMeans <- as.data.frame(t(topHitMeans))
 topHitMeans <- topHitMeans[-1,]
@@ -600,14 +615,14 @@ rownames(topHitMeans) <- 1
 
 summaryTable <- cbind(summaryTable, topHitMeans)
 
-topHitSummary <- read.delim(file = paste(params$outDir, "/topHitSummary.txt", sep = ""), header = T)
+topHitSummary <- read.delim(file = paste(params$outDir, "/topHitSummary.txt", sep = ""), header = T, stringsAsFactors = FALSE)
 topHitSummary <- topHitSummary %>% 
   group_by(., TaxaLevel) %>% 
   summarise(., PercentSingleHit = (sum(UniqueTaxaHit == 1) / length(UniqueTaxaHit))) %>% 
   ungroup() %>% 
   spread(., TaxaLevel, PercentSingleHit)
 
-colnames(topHitSummary) <- paste(colnames(topHitSummary), "- Percent Single Hit")
+colnames(topHitSummary) <- paste(colnames(topHitSummary), "PercentSingleHit", sep = "")
 
 summaryTable <- cbind(summaryTable, topHitSummary)
 
@@ -618,4 +633,69 @@ write.table(summaryTable, file = paste(params$outDir, "/OverallSummary.txt", sep
 
 ```
 
+## Cleanup
+Cleanup the intermediate files if told to.
+
+Keep uncompressed: 
+OverallSummary.txt
+primerEvalPipeline.html
+figures/*
+
+Keep and gzip:
+bsPrimerTreeOut/seqsWithTaxaAligned.fasta
+couldHaveHit/missedTaxa.txt
+didHit/SpeciesOnTarget.txt
+
+delete:
+paste(params$outDir, bsPrimerTreeOut/ampliconLengths.txt)
+bsPrimerTreeOut/distanceSummary.txt
+bsPrimerTreeOut/primerMismatches.txt
+bsPrimerTreeOut/seqsToGet.txt
+bsPrimerTreeOut/seqsWithTaxa.fasta
+bsPrimerTreeOut/taxaSummary.txt
+couldHaveHit/blastParsed.txt
+couldHaveHit/potentialHits.txt
+couldHaveHit/potentialSpeciesOnTarget.txt
+reBlastOut/blastResults.txt.gz
+reBlastOut/taxaRaw.txt
+reBlastOut/taxids.txt
+bannedWords.txt
+seqsWithTaxaOnTarget.fasta
+seqsWithTaxaOnTargetUnique.fasta
+topHitMeans.txt
+topHitSummary.txt
+
+
+```{r cleanupFiles, eval = FALSE}
+if(params$cleanup == TRUE) {
+  
+  rm_file_list <- c("bsPrimerTreeOut/ampliconLengths.txt", 
+                    "bsPrimerTreeOut/distanceSummary.txt", 
+                    "bsPrimerTreeOut/primerMismatches.txt",
+                    "bsPrimerTreeOut/seqsToGet.txt",
+                    "bsPrimerTreeOut/seqsWithTaxa.fasta",
+                    "bsPrimerTreeOut/taxaSummary.txt",
+                    "couldHaveHit/blastParsed.txt",
+                    "couldHaveHit/potentialHits.txt",
+                    "couldHaveHit/potentialSpeciesOnTarget.txt",
+                    "reBlastOut/blastResults.txt.gz",
+                    "reBlastOut/taxaRaw.txt",
+                    "reBlastOut/taxids.txt",
+                    "bannedWords.txt",
+                    "seqsWithTaxaOnTarget.fasta",
+                    "seqsWithTaxaOnTargetUnique.fasta",
+                    "topHitMeans.txt",
+                    "topHitSummary.txt")
+  rm_command <- paste("rm", paste(params$outDir, rm_file_list, sep = "/", collapse = " "))
+  system(rm_command)
+  
+  gzip_file_list <- c("bsPrimerTreeOut/seqsWithTaxaAligned.fasta",
+                      "couldHaveHit/missedTaxa.txt",
+                      "didHit/SpeciesOnTarget.txt")
+  gzip_command <- paste("gzip", paste(params$outDir, gzip_file_list, sep = "/", collapse = " "))
+  system(gzip_command)
+}
+
+
+```
 
