@@ -611,8 +611,8 @@ if(!$noPlots) {
 	    print STDERR "Done with Dendroscope\n";
 	}
 	# Uncomment when a working version of ImageMagick is available. Or don't. Whatever.
-	#my $imgConvertCmd = "convert -density 300 " . $outDir . "treePlot_" . $taxaLevel . ".svg " . $outDir . "treePlot_" . $taxaLevel . ".jpg";
-	#system($imgConvertCmd);
+	my $imgConvertCmd = "convert -density 300 " . $outDir . "treePlot_" . $taxaLevel . ".svg " . $outDir . "treePlot_" . $taxaLevel . ".jpg";
+	system($imgConvertCmd);
 }
 
 
