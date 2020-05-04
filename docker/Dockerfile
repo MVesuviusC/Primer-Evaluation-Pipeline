@@ -1,5 +1,7 @@
 FROM r-base:3.6.2
 
+
+
 ### make required directories
 RUN mkdir /home/runDir && \
     mkdir /home/runDir/bin && \
@@ -7,6 +9,8 @@ RUN mkdir /home/runDir && \
 
 ### move to this directory to install programs
 WORKDIR /usr/local/packages
+
+
 
 ##########
 # Install programs
@@ -17,7 +21,10 @@ RUN apt-get update -y && \
     mafft \
     curl \
     cpanminus \
-    libdbi-perl
+    libdbi-perl \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev
 
 ### get blast
 ARG BLAST_version=2.10.0
@@ -56,8 +63,12 @@ RUN wget -q https://imagemagick.org/download/releases/ImageMagick-${IM_version}.
      cd ../ && \
      rm ImageMagick-${IM_version}.tar.gz
 
+
+#####################
 ### Install R packages
-RUN R -e 'install.packages(c("tidyverse", "knitrBootstrap", "gridExtra", "ggwordcloud"), dependencies = TRUE, quiet = TRUE)'
+RUN R -e 'install.packages("tidyverse", dependencies = TRUE, quiet = TRUE, Ncpus = 16)'
+RUN R -e 'install.packages(c("knitrBootstrap", "gridExtra", "ggwordcloud"), dependencies = TRUE, quiet = TRUE, Ncpus = 16)'
+
 
 ### get MVesuviusC stuff from github
 ARG PE_version=v0.1.1
@@ -79,43 +90,37 @@ RUN wget -q https://github.com/MVesuviusC/primerEvaluation/archive/${PE_version}
 ## install needed perl libs
 RUN cpanm DBD::SQLite
 
+
+
 ##########
 # Set $PATH
 ENV PATH="/usr/local/packages/:/usr/local/packages/localPrimerBlastAlternative/:/usr/local/packages/ImageMagick-${IM_version}/:/usr/local/packages/getTaxa/:/usr/local/packages/ncbi-blast-${BLAST_version}+/bin/:$PATH"
 
 ENV BLASTDB=/usr/local/databases/blast/
 
-RUN ln -s /usr/local/packages/primerEvaluation/primerEvalPipeline.Rmd primerEvalPipeline.Rmd
+
 
 ##########
 # set up reference databases
 WORKDIR /home/runDir
 
-RUN mkdir -p /usr/local/databases/blast && \
-    mkdir /usr/local/databases/tax
+#RUN mkdir -p /usr/local/databases/blast && \
+#    mkdir /usr/local/databases/tax
 
-### the use will download the latest version of the NCBI data 
+### this will download the latest version of the NCBI blast database and make a taxonomy database
 COPY setupDatabases.sh setupDatabases.sh
+RUN chmod 777 setupDatabases.sh
 
-#RUN mv /usr/local/packages/primerEvaluation/taxonomy*.db.gz /usr/local/databases/tax/taxonomy.db.gz && \
-#    gunzip /usr/local/databases/tax/taxonomy.db.gz
 
-#WORKDIR /usr/local/databases/blast/
-
-# Put together blast database
-  # update_blastdb.pl returns 1 if files were downloaded, which is a problem
-  # to circumvent this, I'm forcing an exit code of 0 if the exit code is 1
-#SHELL ["/bin/bash", "-c"]
-
-#RUN (update_blastdb.pl --decompress taxdb || if [ $? == 1 ]; then exit 0; else exit 1; fi;)
-
-#RUN (update_blastdb.pl --decompress nt || if [ $? == 1 ]; then exit 0; else exit 1; fi)
 
 ##########
 # Prep working area
+
+RUN ln -s /usr/local/packages/primerEvaluation/primerEvalPipeline.Rmd primerEvalPipeline.Rmd
+RUN ln -s /usr/local/databases/tax/taxonomy.db taxonomy.db
 
 # Put a file with examples of how to run the program and example input
 COPY Examples.txt Examples.txt
 COPY mam16SPrimerInput.txt mam16SPrimerInput.txt
 
-RUN mkdir output
+#RUN mkdir output

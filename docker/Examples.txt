@@ -1,0 +1,12 @@
+Open R, change the number of threads (if needed) and run this:
+
+rmarkdown::render("primerEvalPipeline.Rmd",
+	output_dir = "mam16SOut/",
+	params = list(
+	outDir = "mam16SOut",
+	primerFile = "examplePrimerInputMammal16S.txt",
+	taxonomyDb = "taxonomy.db",
+	threads = 16
+	)	    
+)	
+			
