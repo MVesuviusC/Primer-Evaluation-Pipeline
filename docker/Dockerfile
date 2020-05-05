@@ -24,7 +24,10 @@ RUN apt-get update -y && \
     libdbi-perl \
     libcurl4-openssl-dev \
     libssl-dev \
-    libxml2-dev
+    libxml2-dev \
+    pandoc \
+    emacs \
+    htop
 
 ### get blast
 ARG BLAST_version=2.10.0
@@ -75,21 +78,25 @@ ARG PE_version=v0.1.1
 ARG GT_version=V2.2.2
 ARG LPBA_version=v0.1.1
 
-RUN mkdir primerEvaluation && mkdir getTaxa && mkdir localPrimerBlastAlternative
+RUN wget -q https://github.com/MVesuviusC/getTaxa/archive/${GT_version}.zip && \
+    unzip ${GT_version}.zip && \
+    rm ${GT_version}.zip && \
+    mv getTaxa*/ getTaxa && \	
+    wget -q https://github.com/MVesuviusC/localPrimerBlastAlternative/archive/${LPBA_version}.zip && \
+    unzip ${LPBA_version}.zip && \
+    rm ${LPBA_version}.zip && \
+    mv localPrimerBlastAlternative*/ localPrimerBlastAlternative
+
+    # Want the primerEval stuff in /home/runDir
+WORKDIR /home/runDir
 
 RUN wget -q https://github.com/MVesuviusC/primerEvaluation/archive/${PE_version}.zip && \
-    unzip -jd primerEvaluation/ ${PE_version}.zip && \
+    unzip ${PE_version}.zip && \
     rm ${PE_version}.zip && \
-    wget -q https://github.com/MVesuviusC/getTaxa/archive/${GT_version}.zip && \
-    unzip -jd getTaxa/ ${GT_version}.zip && \
-    rm ${GT_version}.zip && \
-    wget -q https://github.com/MVesuviusC/localPrimerBlastAlternative/archive/${LPBA_version}.zip && \
-    unzip -jd localPrimerBlastAlternative/ ${LPBA_version}.zip && \
-    rm ${LPBA_version}.zip
-
+    mv primerEvaluation*/* .
+	    
 ## install needed perl libs
 RUN cpanm DBD::SQLite
-
 
 
 ##########
@@ -102,10 +109,6 @@ ENV BLASTDB=/usr/local/databases/blast/
 
 ##########
 # set up reference databases
-WORKDIR /home/runDir
-
-#RUN mkdir -p /usr/local/databases/blast && \
-#    mkdir /usr/local/databases/tax
 
 ### this will download the latest version of the NCBI blast database and make a taxonomy database
 COPY setupDatabases.sh setupDatabases.sh
@@ -116,11 +119,7 @@ RUN chmod 777 setupDatabases.sh
 ##########
 # Prep working area
 
-RUN ln -s /usr/local/packages/primerEvaluation/primerEvalPipeline.Rmd primerEvalPipeline.Rmd
-RUN ln -s /usr/local/databases/tax/taxonomy.db taxonomy.db
-
 # Put a file with examples of how to run the program and example input
 COPY Examples.txt Examples.txt
 COPY mam16SPrimerInput.txt mam16SPrimerInput.txt
 
-#RUN mkdir output

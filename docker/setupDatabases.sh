@@ -2,6 +2,7 @@
 
 # This script will download the NCBI blast databases needed as well as
 # create the taxonomy database required
+mkdir /usr/local/databases/blast
 
 cd /usr/local/databases/blast/
 
