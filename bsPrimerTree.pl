@@ -253,6 +253,8 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 	    $species = $tax_name;
 	}
 
+	$species =~ s/\'//g; # get rid of any ' in the species name - it messes up FastTree
+
 	$speciesSeqCountHash{$species}++;
 	
 	# store taxa info for ampLen printing
@@ -601,7 +603,7 @@ if(!$noPlots) {
 	
 	print $dendroInstFile $dendroTail;
 	close $dendroInstFile;
-	my $dendroscopeCmd = "Dendroscope -g -c " . $outDir . "dendroInstructionFile_" . $taxaLevel . ".txt";
+	my $dendroscopeCmd = "xvfb-run --auto-servernum --server-num=1 Dendroscope +g -c " . $outDir . "dendroInstructionFile_" . $taxaLevel . ".txt";
 	if($verbose) {
 	    print STDERR "starting Dendroscope for $taxaLevel\n";
 	}
