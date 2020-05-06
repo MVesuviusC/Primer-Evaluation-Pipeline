@@ -27,7 +27,8 @@ RUN apt-get update -y && \
     libxml2-dev \
     pandoc \
     emacs \
-    htop
+    htop \
+    xvfb
 
 ### get blast
 ARG BLAST_version=2.10.0
@@ -74,7 +75,7 @@ RUN R -e 'install.packages(c("knitrBootstrap", "gridExtra", "ggwordcloud"), depe
 
 
 ### get MVesuviusC stuff from github
-ARG PE_version=v0.1.1
+ARG PE_version=v0.1.2
 ARG GT_version=V2.2.2
 ARG LPBA_version=v0.1.1
 
@@ -93,7 +94,8 @@ WORKDIR /home/runDir
 RUN wget -q https://github.com/MVesuviusC/primerEvaluation/archive/${PE_version}.zip && \
     unzip ${PE_version}.zip && \
     rm ${PE_version}.zip && \
-    mv primerEvaluation*/* .
+    mv primerEvaluation*/* . && \
+    rmdir primerEvaluation*/
 	    
 ## install needed perl libs
 RUN cpanm DBD::SQLite
@@ -123,3 +125,6 @@ RUN chmod 777 setupDatabases.sh
 COPY Examples.txt Examples.txt
 COPY mam16SPrimerInput.txt mam16SPrimerInput.txt
 
+RUN echo "alias ls='ls --color=auto'" >> ~/.bashrc
+
+RUN echo "(normal-erase-is-backspace-mode 1)" >> ~/.emacs

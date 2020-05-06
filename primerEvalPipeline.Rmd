@@ -222,7 +222,6 @@ bsPrimerBlast.pl \
       --taxDb ${taxonomyDb} \
       --outDir ${outDir}/bsPrimerTreeOut \
       --threads ${threads} \
-      --noPlots \
       --maxSeqsPerSpecies 4 \
       --maxAlignedSeqs 15000
 ```
