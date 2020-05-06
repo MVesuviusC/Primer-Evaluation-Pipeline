@@ -603,7 +603,7 @@ if(!$noPlots) {
 	
 	print $dendroInstFile $dendroTail;
 	close $dendroInstFile;
-	my $dendroscopeCmd = "xvfb-run --auto-servernum --server-num=1 Dendroscope +g -c " . $outDir . "dendroInstructionFile_" . $taxaLevel . ".txt";
+	my $dendroscopeCmd = "xvfb-run --auto-servernum --server-num=1 Dendroscope -g -c " . $outDir . "dendroInstructionFile_" . $taxaLevel . ".txt";
 	if($verbose) {
 	    print STDERR "starting Dendroscope for $taxaLevel\n";
 	}
