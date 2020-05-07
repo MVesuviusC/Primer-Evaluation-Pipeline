@@ -618,10 +618,6 @@ if(!$noPlots) {
 }
 
 
-
-# check if imageMagick is installed -> run convert --version and grep for ImageMagick
-# convert -density 300 testFigure.svg testConvert.jpg
-
 }
 
 if($verbose) {
