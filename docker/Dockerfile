@@ -28,8 +28,10 @@ RUN apt-get update -y && \
     pandoc \
     emacs \
     htop \
-    xvfb
-
+    xvfb \
+    gsfonts \
+    imagemagick
+    
 ### get blast
 ARG BLAST_version=2.10.0
 
@@ -55,17 +57,18 @@ RUN wget -q https://software-ab.informatik.uni-tuebingen.de/download/dendroscope
      rm Dendroscope_unix_${DEND_version}.sh dendroInstallInput.txt
 
 ### get imageMagick
-ARG IM_version=7.0.9-27
+COPY policy.xml /etc/ImageMagick-6/policy.xml
+#ARG IM_version=7.0.9-27
 
-RUN wget -q https://imagemagick.org/download/releases/ImageMagick-${IM_version}.tar.gz && \
-     tar -zxf ImageMagick-${IM_version}.tar.gz && \
-     cd ImageMagick-${IM_version} && \
-     ./configure && \
-     make && \
-     make install && \
-     ldconfig /usr/local/lib && \
-     cd ../ && \
-     rm ImageMagick-${IM_version}.tar.gz
+#RUN wget -q https://imagemagick.org/download/releases/ImageMagick-${IM_version}.tar.gz && \
+#     tar -zxf ImageMagick-${IM_version}.tar.gz && \
+#     cd ImageMagick-${IM_version} && \
+#     ./configure && \
+#     make && \
+#     make install && \
+#     ldconfig /usr/local/lib && \
+#     cd ../ && \
+#     rm ImageMagick-${IM_version}.tar.gz
 
 
 #####################
@@ -75,9 +78,9 @@ RUN R -e 'install.packages(c("knitrBootstrap", "gridExtra", "ggwordcloud"), depe
 
 
 ### get MVesuviusC stuff from github
-ARG PE_version=v0.1.2
+ARG PE_version=v0.1.3
 ARG GT_version=V2.2.2
-ARG LPBA_version=v0.1.1
+ARG LPBA_version=v0.1.2
 
 RUN wget -q https://github.com/MVesuviusC/getTaxa/archive/${GT_version}.zip && \
     unzip ${GT_version}.zip && \

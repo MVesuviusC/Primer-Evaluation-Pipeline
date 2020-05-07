@@ -5,7 +5,7 @@ rmarkdown::render("primerEvalPipeline.Rmd",
 	params = list(
 	outDir = "output/mam16SOut",
 	primerFile = "mam16SPrimerInput.txt",
-	taxonomyDb = "taxonomy.db",
+	taxonomyDb = "/usr/local/databases/tax/taxonomy.db",
 	threads = 16
 	)
 )
