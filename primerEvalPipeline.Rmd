@@ -16,6 +16,7 @@ params:
 Using parameters:
 https://bookdown.org/yihui/rmarkdown/params-knit.html
 
+```{r examples, eval = FALSE, echo = FALSE}
 # example command to run on hush
 rmarkdown::render("primerEvalPipeline.Rmd", 
   output_dir = "evalOut/",
@@ -61,6 +62,7 @@ qsubStub <- "echo \"ls\" | qsub -cwd -P dserre-lab -o parasitePrimerEval/qsubOut
 commandStub <- 'use R-3.5.1; R -e \' rmarkdown::render("primerEvalPipeline.Rmd", output_dir = "evalOut/", params = list(primerFile = "examplePrimerInputFile.txt", blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn", blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt", taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db", threads = 30))\''
 
 perl scripts/batchQsub.pl --input parasitePrimersInput.txt --outDir parasiteTest
+```
 
 
 # Primer evaluation
@@ -122,8 +124,19 @@ Programs
   * blast
   * blastdbcmd
   * mafft
+  * perl 
+  * bsPrimerBlast.pl
+  * bsPrimerTree.pl
+  * getTaxa.pl
+  * Dendroscope - don't kill
+  * imageMagick - don't kill
+  
 Write permissions
 ```{r checkReqs, cache = FALSE, eval = TRUE}
+if(Sys.which("blastnasdf") == "") {
+  warning("blastn not found")
+  knit_exit("this is a test")
+}
 # use knit_exit()
 ```
 
