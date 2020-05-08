@@ -132,12 +132,30 @@ Programs
   * imageMagick - don't kill
   
 Write permissions
-```{r checkReqs, cache = FALSE, eval = TRUE}
-if(Sys.which("blastnasdf") == "") {
-  warning("blastn not found")
-  knit_exit("this is a test")
+```{r checkReqs, cache = FALSE, eval = TRUE, message = FALSE}
+missingDep <- FALSE
+
+for(commandToCheck in c("blast", "blastdbcmd", "mafft", "perl", "bsPrimerBlast.pl",
+		   "bsPrimerTree.pl", "getTaxa.pl", "Dendroscope", "convert")) {
+	if(Sys.which(commandToCheck) == "") {
+		warning(commandToCheck, " command not found. Please ensure this program is installed and in your $PATH")
+		message(commandToCheck, " command not found. Please ensure this program is installed and in your $PATH")
+		missingDep <- TRUE
+	}
 }
-# use knit_exit()
+
+for(perlScript in c("perl scripts/filterFastaNs.pl", "perl scripts/uniqueFastaBySpeciesSeq.pl",
+	       "scripts/findTopBlastHitsWithTaxa.pl", "scripts/countNumInRank.pl", "scripts/getPotentialHits.pl")) {
+	if(!file.exists(perlScript)) {
+		warning(perlScript, " not found. Please ensure this perl script is found in ./scripts/ (relative to where this is run)")
+		message(perlScript, " not found. Please ensure this perl script is found in ./scripts/ (relative to where this is run)")
+		missingDep <- TRUE
+	}
+}
+
+if(missingDep) {
+	knit_exit()
+}
 ```
 
 
