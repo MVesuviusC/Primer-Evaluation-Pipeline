@@ -326,10 +326,10 @@ for(mmType in c("mismatchTotal", "mismatch5Prime")) {
 																				 
                 png(paste(params$outDir, "/figures/primer", mmType, "Mismatches", target, ".png", sep = ""), width = 8000, height = 5000, res = 300)
 
-		print(ggplot(df, aes(x = Name, y = UQ(mmType), fill = Count, label = Count)) +
+		print(ggplot(df, aes(x = Name, y = get(mmType), fill = Count, label = Count)) +
 		        geom_tile(size = 1, color = "white") +
-			facet_wrap(~ direction + Level, ncol = 2, scales = "free_x", strip.position = "left") +
-			geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 1.5) +
+			facet_wrap(~ direction + Level, ncol = 2, scales = "free_x") +
+			geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 3) +
 			theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
 			ggtitle(paste(gsub("mismatch", "", mmType), "primer mismatches\nNumber in each box is the number of sequences with that many mismatches")) +
 			      xlab("") +
@@ -337,49 +337,6 @@ for(mmType in c("mismatchTotal", "mismatch5Prime")) {
 		dev.off()
 	}
 }
-
-knit_exit()
-
-
-
-
-#png(paste(params$outDir, "/figures/primerTotalMismatches.png", sep = ""), width = 8000, height = 5000, res = 300)
-  primerMismatches %>% 
-  select(., class, order, family, direction, mismatchTotal, OnTarget) %>%
-  gather(., "Level", "Name", -direction, -mismatchTotal, -OnTarget) %>%
-  filter(., is.na(Name) == FALSE) %>%
-  group_by(., direction, mismatchTotal, Level, Name, OnTarget) %>%
-  summarize(., Count = length(mismatchTotal)) %>%
-  ungroup(.) %>%
-  mutate(., Level = factor(Level, levels = c(c("class", "order", "family")))) %>%
-  ggplot(., aes(x = Name, y = mismatchTotal, fill = Count, label = Count)) + 
-      geom_tile(size = 1, color = "white") + 
-      facet_wrap(~ direction + Level + OnTarget, ncol = 2, scales = "free_x", strip.position = "left") + 
-      geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 1.5) +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
-      ggtitle("Total number of primer mismatches\nNumber in each box is the number of sequences with that many mismatches") +
-      xlab("") + 
-      ylab("")
-#dev.off()
-
-#png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width = 8000, height = 5000, res = 300)
-  primerMismatches %>% 
-  select(., class, order, family, direction, mismatch5Prime, OnTarget) %>%
-  gather(., "Level", "Name", -direction, -mismatch5Prime, -OnTarget) %>%
-  filter(., is.na(Name) == FALSE) %>%
-  group_by(., direction, mismatch5Prime, Level, Name, OnTarget) %>%
-  summarize(., Count = length(mismatch5Prime)) %>%
-  ungroup(.) %>%
-  mutate(., Level = factor(Level, levels = c(c("class", "order", "family")))) %>%
-  ggplot(., aes(x = Name, y = mismatch5Prime, fill = Count, label = Count)) + 
-      geom_tile(size = 1, color = "white") + 
-      facet_wrap(~ direction + Level + OnTarget, ncol = 2, scales = "free_x", strip.position = "left") + 
-      geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 1.5) +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
-      ggtitle("Total number of mismatches in the 5' end\nNumber in each box is the number of sequences with that many mismatches") +
-      xlab("") + 
-      ylab("")
-#dev.off()
 
 summaryTable$MeanOnTarget5PrimeMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatch5Prime)
 summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatchTotal)
@@ -602,10 +559,10 @@ summaryTable$PercentAmplifiedOnTarget <- 100 * (summaryTable$OnTargetSpeciesAmpl
 ############ Should put this somewhere else
 ############ Should color by on-target
 forCloud <- taxaSummary %>%
-  mutate(., Count = 1) %>%
+  mutate(., Count = 1, onTarget = if_else(get(targetLevel) == !! targetTaxa, "On-target", "Off-target", "Off-target")) %>%
   select(., -species) %>% # this adds too many entries and they should all have Count = 1.... 
-  gather(., "Level", "Taxa", -Count) %>% 
-  group_by(., Taxa,Level) %>% 
+  gather(., "Level", "Taxa", -Count, -onTarget) %>% 
+  group_by(., Taxa, Level, onTarget) %>% 
   summarize(., Count = sum(Count), log10Count = log10(sum(Count))) %>%
   ungroup() %>%
   group_by(., Level) %>% 
@@ -615,12 +572,13 @@ forCloud <- taxaSummary %>%
   mutate(., Level = factor(Level, levels = colnames(taxaSummary[1:8]))) %>%
   mutate(., Taxa = replace_na(Taxa, "ND"))
 
-png(filename = paste(params$outDir, "/figures/taxaCloud.png", sep = ""), width = 4000, height = 4000, res = 600)
-ggplot(forCloud, aes(label = paste(Taxa, " (", Percent, "%)", sep = ""), size = log10Count)) +
-  geom_text_wordcloud_area(shape = "square") +
+png(filename = paste(params$outDir, "/figures/taxaCloud.png", sep = ""), width = 4500, height = 4000, res = 600)
+ggplot(forCloud, aes(label = paste(Taxa, " (", Percent, "%)", sep = ""), size = log10Count, color = onTarget)) +
+  geom_text_wordcloud_area(shape = "square", show.legend = TRUE) +
   scale_size_area(max_size = 3) +
   facet_wrap(~ Level, scales = "free") +
-  ggtitle("Taxa greater than 0.5%")
+  ggtitle("Taxa greater than 0.5%") +
+  guides(size = FALSE)
 dev.off()
 
 
@@ -641,12 +599,13 @@ missedSummary <- potentialHits %>%
   gather(., key = "Level", value = "Taxa", -WasHit) %>% 
   group_by(., Level, Taxa) %>% 
   summarize(., PercentHit = sum(WasHit) / length(WasHit), NumHit = sum(WasHit), NumMissed = length(WasHit) - sum(WasHit)) %>% 
-  ungroup()
+  ungroup() %>%
+  mutate(xlabs = paste(Taxa, "(", NumHit, ")", sep = ""))  
 
 missedSummary$Level <- factor(missedSummary$Level, levels = c("species", "genus", "family", "order", "class", "phylum", "kingdom"))
 
 png(filename = paste(params$outDir, "/figures/taxaPercentAmplifiableByTaxa.png", sep = ""), width = 8000, height = 6000, res = 300)
-ggplot(missedSummary, aes(x = reorder(Taxa, -PercentHit), y = PercentHit * 100)) + 
+ggplot(missedSummary, aes(x = reorder(xlabs, -PercentHit), y = PercentHit * 100)) + 
   geom_bar(stat = "identity") + 
   facet_wrap(~ Level, scales = "free_x", ncol = 1) +
   xlab("") + 
