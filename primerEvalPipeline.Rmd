@@ -135,7 +135,7 @@ Write permissions
 ```{r checkReqs, cache = FALSE, eval = TRUE, message = FALSE}
 missingDep <- FALSE
 
-for(commandToCheck in c("blast", "blastdbcmd", "mafft", "perl", "bsPrimerBlast.pl",
+for(commandToCheck in c("blastn", "blastdbcmd", "mafft", "perl", "bsPrimerBlast.pl",
 		   "bsPrimerTree.pl", "getTaxa.pl", "Dendroscope", "convert")) {
 	if(Sys.which(commandToCheck) == "") {
 		warning(commandToCheck, " command not found. Please ensure this program is installed and in your $PATH")
@@ -144,7 +144,7 @@ for(commandToCheck in c("blast", "blastdbcmd", "mafft", "perl", "bsPrimerBlast.p
 	}
 }
 
-for(perlScript in c("perl scripts/filterFastaNs.pl", "perl scripts/uniqueFastaBySpeciesSeq.pl",
+for(perlScript in c("scripts/filterFastaNs.pl", "scripts/uniqueFastaBySpeciesSeq.pl",
 	       "scripts/findTopBlastHitsWithTaxa.pl", "scripts/countNumInRank.pl", "scripts/getPotentialHits.pl")) {
 	if(!file.exists(perlScript)) {
 		warning(perlScript, " not found. Please ensure this perl script is found in ./scripts/ (relative to where this is run)")
@@ -254,7 +254,7 @@ bsPrimerBlast.pl \
       --outDir ${outDir}/bsPrimerTreeOut \
       --threads ${threads} \
       --maxSeqsPerSpecies 4 \
-      --maxAlignedSeqs 15000
+      --maxAlignedSeqs 5000
 ```
 
 ### Plot amplicon length distribution 
@@ -296,7 +296,7 @@ bsPrimerTreeHits <- subset(bsPrimerTreeHits, get(targetLevel) == targetTaxa)
 # Get rid of hits with "banned" words
 bsPrimerTreeHits <- as.data.frame(bsPrimerTreeHits[grep(paste(bannedWords, collapse = "|"), bsPrimerTreeHits$species, perl = T, invert = T),])
 
-write.table(bsPrimerTreeHits, file = paste(params$outDir, "/didHit/SpeciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
+write.table(bsPrimerTreeHits, file = paste(params$outDir, "/didHit/speciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
 ```
 
 ### Plot primer mismatch counts
@@ -312,7 +312,38 @@ primerMismatches$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <-
 
 
 ### plots
-png(paste(params$outDir, "/figures/primerTotalMismatches.png", sep = ""), width = 8000, height = 5000, res = 300)
+
+for(mmType in c("mismatchTotal", "mismatch5Prime")) {
+	for(target in c("On-target", "Off-target")) {
+                df <- primerMismatches %>%
+		   select(., class, order, family, direction, !! mmType, OnTarget) %>%
+		   gather(., "Level", "Name", -direction, -!! mmType, -OnTarget) %>%
+		   filter(is.na(Name) == FALSE, OnTarget == !! target) %>%
+		   group_by_at(vars(!! mmType, Level, Name, direction)) %>%
+		   tally(name = "Count") %>%
+		   ungroup() %>%
+		   mutate(Level = factor(Level, levels = c(c("class", "order", "family"))))
+																				 
+                png(paste(params$outDir, "/figures/primer", mmType, "Mismatches", target, ".png", sep = ""), width = 8000, height = 5000, res = 300)
+
+		print(ggplot(df, aes(x = Name, y = UQ(mmType), fill = Count, label = Count)) +
+		        geom_tile(size = 1, color = "white") +
+			facet_wrap(~ direction + Level, ncol = 2, scales = "free_x", strip.position = "left") +
+			geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 1.5) +
+			theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+			ggtitle(paste(gsub("mismatch", "", mmType), "primer mismatches\nNumber in each box is the number of sequences with that many mismatches")) +
+			      xlab("") +
+			      ylab(""))
+		dev.off()
+	}
+}
+
+knit_exit()
+
+
+
+
+#png(paste(params$outDir, "/figures/primerTotalMismatches.png", sep = ""), width = 8000, height = 5000, res = 300)
   primerMismatches %>% 
   select(., class, order, family, direction, mismatchTotal, OnTarget) %>%
   gather(., "Level", "Name", -direction, -mismatchTotal, -OnTarget) %>%
@@ -329,9 +360,9 @@ png(paste(params$outDir, "/figures/primerTotalMismatches.png", sep = ""), width 
       ggtitle("Total number of primer mismatches\nNumber in each box is the number of sequences with that many mismatches") +
       xlab("") + 
       ylab("")
-dev.off()
+#dev.off()
 
-png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width = 8000, height = 5000, res = 300)
+#png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width = 8000, height = 5000, res = 300)
   primerMismatches %>% 
   select(., class, order, family, direction, mismatch5Prime, OnTarget) %>%
   gather(., "Level", "Name", -direction, -mismatch5Prime, -OnTarget) %>%
@@ -348,7 +379,7 @@ png(paste(params$outDir, "/figures/primer5PrimeMismatches.png", sep = ""), width
       ggtitle("Total number of mismatches in the 5' end\nNumber in each box is the number of sequences with that many mismatches") +
       xlab("") + 
       ylab("")
-dev.off()
+#dev.off()
 
 summaryTable$MeanOnTarget5PrimeMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatch5Prime)
 summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatchTotal)
@@ -378,15 +409,7 @@ for(levelInUse in levelsToUse) {
   
   summaryTable[[paste("MeanOnTargetDistBetweenSeqsWithinEach", str_to_title(levelInUse), sep = "")]] <- subset(distanceSummary, OnTarget == TRUE & CompLevel == levelInUse)$Average[1]
   
-  #tempDf <- distanceSummary %>% 
-  #  select(., CompLevel, OnTarget, Average) %>% 
-  #  distinct(.) %>% 
-  #  filter(., OnTarget == TRUE, CompLevel == levelInUse)
-  
-  #primerDf[[paste("MeanDist_", levelInUse, sep = "")]] <- tempDf$Average[1]
 }
-
-
 ```
 
 
@@ -564,7 +587,7 @@ Primer taxonomic specificity
 taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""), stringsAsFactors = FALSE)
 taxaSummary <- taxaSummary[grep(paste(bannedWords, collapse = "|"), taxaSummary$species, invert = T),]
 
-################################### should use outDir/didHit/SpeciesOnTarget.txt
+################################### should use outDir/didHit/speciesOnTarget.txt
 
 taxaSummaryOnTarget <- subset(taxaSummary, get(targetLevel) == targetTaxa)
 
@@ -592,7 +615,7 @@ forCloud <- taxaSummary %>%
   mutate(., Level = factor(Level, levels = colnames(taxaSummary[1:8]))) %>%
   mutate(., Taxa = replace_na(Taxa, "ND"))
 
-png(filename = paste(params$outDir, "/figures/TaxaCloud.png", sep = ""), width = 4000, height = 4000, res = 600)
+png(filename = paste(params$outDir, "/figures/taxaCloud.png", sep = ""), width = 4000, height = 4000, res = 600)
 ggplot(forCloud, aes(label = paste(Taxa, " (", Percent, "%)", sep = ""), size = log10Count)) +
   geom_text_wordcloud_area(shape = "square") +
   scale_size_area(max_size = 3) +
@@ -605,7 +628,6 @@ dev.off()
 potentialHits <- read.delim(file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), header = T, stringsAsFactors = FALSE)
 potentialSpecies <- as.character(unique(potentialHits$species))
 potentialHits$WasHit <- potentialHits$species %in% potentialSpecies[potentialSpecies %in% taxaSummaryOnTarget$species]
-
 
 missedSpecies <- potentialHits[potentialHits$species %in% potentialSpecies[!potentialSpecies %in% taxaSummaryOnTarget$species],]
                         
@@ -623,7 +645,7 @@ missedSummary <- potentialHits %>%
 
 missedSummary$Level <- factor(missedSummary$Level, levels = c("species", "genus", "family", "order", "class", "phylum", "kingdom"))
 
-png(filename = paste(params$outDir, "/figures/TaxaPercentAmplifiableByTaxa.png", sep = ""), width = 8000, height = 6000, res = 300)
+png(filename = paste(params$outDir, "/figures/taxaPercentAmplifiableByTaxa.png", sep = ""), width = 8000, height = 6000, res = 300)
 ggplot(missedSummary, aes(x = reorder(Taxa, -PercentHit), y = PercentHit * 100)) + 
   geom_bar(stat = "identity") + 
   facet_wrap(~ Level, scales = "free_x", ncol = 1) +
@@ -659,7 +681,7 @@ summaryTable <- cbind(summaryTable, topHitSummary)
 ### primer mismatches
 
 
-write.table(summaryTable, file = paste(params$outDir, "/OverallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = F)
+write.table(summaryTable, file = paste(params$outDir, "/overallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = F)
 
 ```
 
@@ -683,6 +705,8 @@ bsPrimerTreeOut/primerMismatches.txt
 bsPrimerTreeOut/seqsToGet.txt
 bsPrimerTreeOut/seqsWithTaxa.fasta
 bsPrimerTreeOut/taxaSummary.txt
+bsPrimerTreeOut/*.svg
+bsPrimerTreeOut/dendro*.txt
 couldHaveHit/blastParsed.txt
 couldHaveHit/potentialHits.txt
 couldHaveHit/potentialSpeciesOnTarget.txt
@@ -705,7 +729,9 @@ if(params$cleanup == TRUE) {
                     "bsPrimerTreeOut/seqsToGet.txt",
                     "bsPrimerTreeOut/seqsWithTaxa.fasta",
                     "bsPrimerTreeOut/taxaSummary.txt",
-                    "couldHaveHit/blastParsed.txt",
+		    "bsPrimerTreeOut/*.svg",
+		    "bsPrimerTreeOut/dendro*.txt",
+		    "couldHaveHit/blastParsed.txt",
                     "couldHaveHit/potentialHits.txt",
                     "couldHaveHit/potentialSpeciesOnTarget.txt",
                     "reBlastOut/blastResults.txt.gz",
