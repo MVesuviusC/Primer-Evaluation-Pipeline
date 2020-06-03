@@ -71,11 +71,13 @@ my %seqTrimHash;
 my %taxNamesHash;
 my %taxCountHash;
 my %mismatchHash;
+my %mismatchLocsHash;
 my %speciesSeqCountHash;
 my %alignedSeqHash;
 my %distHash;
 my %ampLenHash;
 my %taxaHash;
+my $blastHitCount = 0;
 
 
 ##############################
@@ -124,10 +126,10 @@ while (my $input = <$inputFH>){
        $sAmpStart,                             # start of amplicon location
        $sAmpEnd,                               # end amplicon location
        $sAmpLen,                               # amplicon length
-       $primer1MismatchCount,                  # number of mismatches
-       $primer1Mismatch5PrimeTip,              # number of mismatches in the 5' end
-       $primer2MismatchCount,                  # number of mismatches other end
-       $primer2Mismatch5PrimeTip,              # number of mismatches in the 5' end, other end
+       $primer1MismatchLocs,                   # locations of mismatches
+       $primer1Mismatch3PrimeTip,              # number of mismatches in the 3' end
+       $primer2MismatchLocs,                   # locations of mismatches other end
+       $primer2Mismatch3PrimeTip,              # number of mismatches in the 3' end, other end
        $primer1QSeq,                           # query seq
        $primer1SSeq,                           # hit seq
        $primer2QSeq,                           # other end query seq
@@ -143,15 +145,27 @@ while (my $input = <$inputFH>){
     $ampLenHash{$sTaxids}{$sAmpLen}++;
     
     # Store mismatch info to parse out later once we have the taxa info
-    $primer1MismatchCount =~ s/:/\t/;
-    $primer2MismatchCount =~ s/:/\t/;
-    
+	# Primer 1 mismatches
+	my ($primer1Dir, $primer1MismatchLocNums) = split ":", $primer1MismatchLocs;
+    my @primer1MismatchLocArray = split ",", $primer1MismatchLocNums;
+	my $primer1MismatchCount = scalar(@primer1MismatchLocArray);
 
-    $mismatchHash{$sTaxids}{$primer1MismatchCount . "\t" . $primer1Mismatch5PrimeTip}++; 
-    $mismatchHash{$sTaxids}{$primer2MismatchCount . "\t" . $primer2Mismatch5PrimeTip}++;
+    $mismatchHash{$sTaxids}{$primer1Dir . "\t" . $primer1MismatchCount . "\t" . $primer1Mismatch3PrimeTip}++;
+    $mismatchLocsHash{$sTaxids}{$primer1Dir . "\t" . join(",", @primer1MismatchLocArray)}++;
+
+	# Primer 2 mismatches
+	my ($primer2Dir, $primer2MismatchLocNums) = split ":", $primer2MismatchLocs;
+    my @primer2MismatchLocArray = split ",", $primer2MismatchLocNums;
+	my $primer2MismatchCount = scalar(@primer2MismatchLocArray);
+
+    $mismatchHash{$sTaxids}{$primer2Dir . "\t" . $primer2MismatchCount . "\t" . $primer2Mismatch3PrimeTip}++;
+    $mismatchLocsHash{$sTaxids}{$primer2Dir . "\t" . join(",", @primer2MismatchLocArray)}++;
+
 
     # Store hit seq and other end hit seqs for each hit so I can trim them off later
     @{ $seqTrimHash{$sGi} } = ($primer1SSeq, $primer2SSeq);
+    
+    #$blastHitCount++; # store this for primer mismatch printing
 }
 
 close $inputFH;
@@ -201,12 +215,6 @@ $/ = "\n>";
 open my $fastaWithTaxaFile, ">", $outDir . "seqsWithTaxa.fasta";
 open my $blastDbCmdResponse, "-|", $blastDBCmdCmd or die "blastdbcmd query failed\n";
 
-open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
-print $mismatchFile join("\t", "taxid", "superkingdom", "kingdom", "phylum", 
-			 "class", "order", "family", "genus", "species", 
-			 "direction", "mismatchTotal", "mismatch5Prime"), "\n";
-
-
 while(my $blastInput = <$blastDbCmdResponse>) {
     chomp $blastInput;
     $blastInput =~ s/^>//;
@@ -234,87 +242,120 @@ while(my $blastInput = <$blastDbCmdResponse>) {
     
     my ($species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $tax_name);
     while(my $row = $sth->fetchrow_hashref){
-	$species      = "$row->{species}";
-	$genus        = "$row->{genus}";
-	$family       = "$row->{family}";
-	$order        = "$row->{order}";
-	$class        = "$row->{class}";
-	$phylum       = "$row->{phylum}";
-	$kingdom      = "$row->{kingdom}";
-	$superkingdom = "$row->{superkingdom}";
-	$tax_name     = "$row->{tax_name}";
+		$species      = "$row->{species}";
+		$genus        = "$row->{genus}";
+		$family       = "$row->{family}";
+		$order        = "$row->{order}";
+		$class        = "$row->{class}";
+		$phylum       = "$row->{phylum}";
+		$kingdom      = "$row->{kingdom}";
+		$superkingdom = "$row->{superkingdom}";
+		$tax_name     = "$row->{tax_name}";
     }
 
 
     ### print out 
     if(defined($species)) {
 	# some of the entries in the tax db don't have species labeled >:-|
-	if($species eq "NA") {
-	    $species = $tax_name;
-	}
+		if($species eq "NA") {
+			$species = $tax_name;
+		}
 
-	$species =~ s/\'//g; # get rid of any ' in the species name - it messes up FastTree
+		$species =~ s/\'//g; # get rid of any ' in the species name - it messes up FastTree
 
-	$speciesSeqCountHash{$species}++;
-	
-	# store taxa info for ampLen printing
-	$taxaHash{$taxid} = join("\t", $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $species);
+		$speciesSeqCountHash{$species}++;
+		
+		# store taxa info for ampLen printing
+		$taxaHash{$taxid} = join("\t", $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $species);
 
-	my $newHeader = ">"   . # header with taxa info and unique number to make alignment program happy
-			"s-"  . $species . ":" .
-			"sk-" . $superkingdom . ":" .
-			"k-"  . $kingdom . ":" .
-			"p-"  . $phylum . ":" .
-			"c-"  . $class . ":" .
-			"o-"  . $order . ":" .
-			"f-"  . $family . ":" .
-			"g-"  . $genus . ":" . 
-			"_" . $speciesSeqCountHash{$species};
-			
-	# put it into printable array if I haven't seen too many of that species
-	if($speciesSeqCountHash{$species} <= $maxSeqPerSp) {
-	    push @printable, $newHeader . "\n" . $seq;
-	}
-	
-	# record how many of each taxa I've seen to print out later
-	$taxCountHash{$superkingdom . "\t" . 
-			  $kingdom . "\t" . 
-			  $phylum . "\t" . 
-			  $class . "\t" . 
-			  $order . "\t" . 
-			  $family . "\t" . 
-			  $genus . "\t" . 
-			  $species}++;
-	
-	$taxNamesHash{species}{$species}++;
-	$taxNamesHash{genus}{$genus}++;
-	$taxNamesHash{family}{$family}++;
-	$taxNamesHash{order}{$order}++;
-	$taxNamesHash{class}{$class}++;
-	$taxNamesHash{phylum}{$phylum}++;
-	$taxNamesHash{kingdom}{$kingdom}++;
-	$taxNamesHash{superkingdom}{$superkingdom}++;
-
-
-	# Print out information on how many mismatches there are
-	for my $mismatch (keys %{ $mismatchHash{$taxid} } ) {
-	    print $mismatchFile $taxid . "\t" . 
-		                $superkingdom . "\t" . 
+		my $newHeader = ">"   . # header with taxa info and unique number to make alignment program happy
+				"s-"  . $species . ":" .
+				"sk-" . $superkingdom . ":" .
+				"k-"  . $kingdom . ":" .
+				"p-"  . $phylum . ":" .
+				"c-"  . $class . ":" .
+				"o-"  . $order . ":" .
+				"f-"  . $family . ":" .
+				"g-"  . $genus . ":" . 
+				"_" . $speciesSeqCountHash{$species};
+				
+		# put it into printable array if I haven't seen too many of that species
+		if($speciesSeqCountHash{$species} <= $maxSeqPerSp) {
+			push @printable, $newHeader . "\n" . $seq;
+		}
+		
+		# record how many of each taxa I've seen to print out later
+		$taxCountHash{$superkingdom . "\t" . 
 				$kingdom . "\t" . 
 				$phylum . "\t" . 
 				$class . "\t" . 
 				$order . "\t" . 
 				$family . "\t" . 
 				$genus . "\t" . 
-				$species . "\t" .
-				$mismatch . "\n"; 
-	}
+				$species}++;
+		
+		$taxNamesHash{species}{$species}++;
+		$taxNamesHash{genus}{$genus}++;
+		$taxNamesHash{family}{$family}++;
+		$taxNamesHash{order}{$order}++;
+		$taxNamesHash{class}{$class}++;
+		$taxNamesHash{phylum}{$phylum}++;
+		$taxNamesHash{kingdom}{$kingdom}++;
+		$taxNamesHash{superkingdom}{$superkingdom}++;
 
-    } else {
-	print STDERR "Taxonomy not found for gi: $gi, taxid: $taxid\n";
-	print STDERR "Make sure your blast database and taxonomy database " . 
-			"were downloaded at about the same time\n";
-    }
+		$blastHitCount++; # store this for primer mismatch printing
+	} else {
+		print STDERR "Taxonomy not found for gi: $gi, taxid: $taxid\n";
+		print STDERR "Make sure your blast database and taxonomy database " . 
+		"were downloaded at about the same time\n";
+	}
+}
+
+# Print out information on how many mismatches there are
+open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
+print $mismatchFile join("\t", "taxid", "superkingdom", "kingdom", "phylum", 
+			 "class", "order", "family", "genus", "species", "direction", 
+			 "mismatchTotal", "mismatch5Prime", "count", "totalCount"), "\n";
+			 
+open my $mismatchLocsFile, ">", $outDir . "primerMismatchLocs.txt";
+print $mismatchLocsFile "# 1 is the 3 prime end of the primer";
+print $mismatchLocsFile join("\t", "taxid", "superkingdom", "kingdom", "phylum", 
+			 "class", "order", "family", "genus", "species", "direction", 
+			 "mismatchLoc", "count", "totalCount"), "\n";
+
+for my $taxid (keys %taxaHash) {
+	# Mismatch counts				
+	for my $mismatch (keys %{ $mismatchHash{$taxid} } ) {
+	    print $mismatchFile $taxid . "\t" .
+				$taxaHash{$taxid} . "\t" .
+				$mismatch . "\t" .
+				$mismatchHash{$taxid}{$mismatch} . "\t" .
+				$blastHitCount, "\n"; 
+	}
+	# Mismatch locations	
+	for my $mismatchLocs (keys %{ $mismatchLocsHash{$taxid} } ) {
+	    my ($direction, $mismatchNums) = split("\t", $mismatchLocs); 
+
+		my @mismatchLocArray = split ",", $mismatchNums;
+		for my $loc (@mismatchLocArray) {
+				print $mismatchLocsFile $taxid . "\t" .
+				$taxaHash{$taxid} . "\t" .
+				$direction . "\t" .
+				$loc . "\t" .
+				$mismatchLocsHash{$taxid}{$mismatchLocs} . "\t" .
+				$blastHitCount, "\n"; 
+		}
+	     
+		# For primers with no mismatches
+		if(scalar(@mismatchLocArray == 0)) {
+			print $mismatchLocsFile $taxid . "\t" .
+			$taxaHash{$taxid} . "\t" .
+		    $direction . "\t" .
+		    "NA\t" .
+		    $mismatchLocsHash{$taxid}{$mismatchLocs} . "\t" .
+			$blastHitCount, "\n"; 
+	    }
+	}
 }
 
 close $mismatchFile;
@@ -344,9 +385,9 @@ if($maxAlignedSeqs <= scalar(@printable)) {
     # random print
     my $printChance = $maxAlignedSeqs / scalar(@printable);
     for my $entry (@printable) {
-	if(rand() <= $printChance) {
-	    print $fastaWithTaxaFile $entry, "\n";
-	} 
+		if(rand() <= $printChance) {
+			print $fastaWithTaxaFile $entry, "\n";
+		} 
     }
     # otherwise just print everything
 } else {

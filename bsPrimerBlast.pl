@@ -188,8 +188,8 @@ while(my $input = <BLASTRESULTS>) {
     if(scalar(@parsed) > 0) {
 	my $shouldBeIncluded = 1;
 	my($qseqid, $sgi, $staxids, $sscinames, $scomnames, $ampStart, $ampEnd,
-	   $ampLength, $mismatchCount, $mismatch5Prime, $lastMismatchCount,
-	   $lastMismatch5Prime, $qseq, $sseq, $lastQseq, $lastSseq) = @parsed;
+	   $ampLength, $mismatchLoc, $mismatch3Prime, $lastMismatchLoc,
+	   $lastMismatch3Prime, $qseq, $sseq, $lastQseq, $lastSseq) = @parsed;
 	if(exists($resultsHash{$qseqid . "\t" . $sgi})) {
 	    for my $result (@{ $resultsHash{$qseqid . "\t" . $sgi} }) {
 		my @resultArray = split "\t", $result;
@@ -219,10 +219,10 @@ print join("\t",
 	   "sAmpStart",                             # start of amplicon location
 	   "sAmpEnd",                               # end amplicon location
 	   "sAmpLen",                               # amplicon length
-	   "primer1MismatchCount",                  # number of mismatches
-	   "primer1Mismatch5PrimeTip",              # number of mismatches in the 5' end
-	   "primer2MismatchCount",                  # number of mismatches other end
-	   "primer2Mismatch5Prime",                 # number of mismatches in the 5' end, other end
+	   "primer1MismatchLoc",                    # location of mismatches
+	   "primer1Mismatch3PrimeTip",              # number of mismatches in the 3' end
+	   "primer2MismatchLoc",                    # location of mismatches other end
+	   "primer2Mismatch3Prime",                 # number of mismatches in the 3' end, other end
 	   "primer1QSeq",                           # query seq
 	   "primer1SSeq",                           # hit seq
 	   "primer2QSeq",                           # other end query seq
@@ -279,8 +279,9 @@ sub addPrimersToHash {
             $i++;
         }
     }
-    print STDERR $i, " primer combinations for ", $name, "\n";
-
+    if($verbose) {
+	print STDERR $i, " primer combinations for ", $name, "\n";
+    }
 }
 
 sub addDegeneratePrimer {
@@ -357,16 +358,23 @@ sub parseBlast {
 	   ($hitPositions[3] - $hitPositions[0] <= $maxAmpLen) && 
 	   ($hitPositions[3] - $hitPositions[0] >= $minAmpLen)) {
             # count primer mismatches
-            my ($lastMismatchCount, $lastMismatch5Prime) = mismatchCounter($lastLine); #$lastQseq, $lastSseq, $lastQstart, $lastQend, $lastQseqid, $lastSgi, $lastSstart);
-            my ($mismatchCount, $mismatch5Prime) = mismatchCounter($blastData); #$qseq, $sseq, $qstart, $qend, $qseqid, $sgi);
+            my ($lastMismatchLoc, $lastMismatch3Prime) = mismatchCounter($lastLine); #$lastQseq, $lastSseq, $lastQstart, $lastQend, $lastQseqid, $lastSgi, $lastSstart);
+            my ($mismatchLoc, $mismatch3Prime) = mismatchCounter($blastData); #$qseq, $sseq, $qstart, $qend, $qseqid, $sgi);
 
-	    my $mismatchCountF = $lastMismatchCount;
-	    $mismatchCountF =~ s/.+://;
-	    my $mismatchCountR = $mismatchCount;
-	    $mismatchCountR =~ s/.+://;
 
-	    if($lastMismatch5Prime <= $primerTipMismatch && 
-	       $mismatch5Prime <= $primerTipMismatch && 
+	    my $mismatchCountF = 0;
+	    if($lastMismatchLoc ne "") {
+		$mismatchCountF = ($lastMismatchLoc =~ tr/,/,/);
+		$mismatchCountF++; # 3,4 only has one comma, so need to +1
+	    }
+	    my $mismatchCountR = 0;
+	    if($mismatchLoc ne "") {
+		$mismatchCountR = ($mismatchLoc =~ tr/,/,/);
+		$mismatchCountR++; 
+	    }
+
+	    if($lastMismatch3Prime <= $primerTipMismatch && 
+	       $mismatch3Prime <= $primerTipMismatch && 
 	       $mismatchCountF <= $totalMismatchCount && 
 	       $mismatchCountR <= $totalMismatchCount) {
 		@output = (
@@ -378,10 +386,10 @@ sub parseBlast {
 			   $hitPositions[0],                       # start of amplicon location
 			   $hitPositions[3],                       # end amplicon location
 			   $hitPositions[3] - $hitPositions[0],    # amplicon length
-			   $mismatchCount,                         # number of mismatches
-			   $mismatch5Prime,                        # number of mismatches in the 5' end
-			   $lastMismatchCount,                     # number of mismatches other end
-			   $lastMismatch5Prime,                    # number of mismatches in the 5' end, other end
+			   $mismatchLoc,                           # location of mismatches
+			   $mismatch3Prime,                        # number of mismatches in the 3' end
+			   $lastMismatchLoc,                       # location of mismatches other end
+			   $lastMismatch3Prime,                    # number of mismatches in the 3' end, other end
 			   $qseq,                                  # query seq
 			   $sseq,                                  # hit seq
 			   $lastQseq,                              # other end query seq
@@ -410,11 +418,9 @@ sub mismatchCounter {
 
     my $hitRealSeq = $sseq;
 
-    my $mismatches = 0;
-    my $mismatch5Prime = 0;
+    my $mismatchLocs = "";
+    my $mismatch3Prime = 0;
 
-    #my $mismatchLocs; Will have to figure out how best to implement this later.... 
-    
     # Check to be sure both sequence and primer are full length and fill in if needed
     
     if($qstart < 20) { # query is the forward primer
@@ -429,7 +435,7 @@ sub mismatchCounter {
 
     # I might consider putting in an option to kick out any primer pair where either has a mismach at the terminal 3' end of a primer since these are unlikely to amplify
 
-    # Check left end of primer
+    # Check left end of primer and add sequences as needed
     print STDERR $blastData, "\n", $primerHash{$qseqid}[$primerArrayIndex], " real primer\n", $primerRealSeq, "\t", $hitRealSeq, "primerBeforeCheckingStart\n" if($debug);
     if($qstart != $primerShouldStart) {
 	if($qstart == $primerShouldStart + 1){
@@ -453,7 +459,7 @@ sub mismatchCounter {
 	    }
 	}
     }
-    # Check right end of primer
+    # Check right end of primer and add sequences as needed
     print STDERR $primerRealSeq, "\t", $hitRealSeq, "primer after start fix\n" if($debug);
     if($qend != $primerShouldEnd) {
 	if($qend == $primerShouldEnd - 1) {
@@ -479,40 +485,27 @@ sub mismatchCounter {
     }
 
     print STDERR $primerRealSeq, "\t", $hitRealSeq, "after end fix\n" if($debug);
-    my $leftMismatches = 0;
-    my $rightMismatches = 0;
 
     # Count the mismatches in the aligned portion of the primer
     if($primerRealSeq ne $hitRealSeq) { # no need to count mismatches if identical
+	# rev complement forward primers so they're facing 3'---5' so $i = 0 is the 3' end
+	if($primerDir eq "for:") {
+	    $primerRealSeq = revComp($primerRealSeq);
+	    $hitRealSeq = revComp($hitRealSeq);
+	}
 	for(my $i = 0; $i < length($primerRealSeq); $i++) {
 	    my $qBase = substr($primerRealSeq, $i, 1);
 	    my $sBase = substr($hitRealSeq, $i, 1);
 	    if($sBase !~ /[$degenerateRegexHash{$qBase}]/) {
-		$mismatches++;
-		#$mismatchLocs .= $sBase;
-		if($i < $primerTipLen) {
-		    $leftMismatches++;
-		} elsif($i >= (length($primerRealSeq) - $primerTipLen)) {
-		    $rightMismatches++;
+		$mismatchLocs .= "," . ($i + 1);
+		if($i <= $primerTipLen) {
+		    $mismatch3Prime++;
 		}
-	    } #else {
-	#$mismatchLocs .= ".";
-	    #}
-#	if($i < $primerTipLen) {
-#	    $leftMismatches++;
-#	} elsif($i >= (length($primerRealSeq) - $primerTipLen)) {
-#	    $rightMismatches++;
-#	}
+	    } 
 	}
     }
-
-    if($primerDir eq "for:") {
-	$mismatch5Prime = $rightMismatches;
-    } else {
-	$mismatch5Prime = $leftMismatches;
-    }
-
-    return ($primerDir . $mismatches, $mismatch5Prime);
+    $mismatchLocs =~ s/^,//; # get rid of leading comma
+    return ($primerDir . $mismatchLocs, $mismatch3Prime);
 }
 
 
