@@ -318,7 +318,7 @@ print $mismatchFile join("\t", "taxid", "superkingdom", "kingdom", "phylum",
 			 "mismatchTotal", "mismatch5Prime", "count", "totalCount"), "\n";
 			 
 open my $mismatchLocsFile, ">", $outDir . "primerMismatchLocs.txt";
-print $mismatchLocsFile "# 1 is the 3 prime end of the primer";
+print $mismatchLocsFile "# 1 is the 3 prime end of the primer/n";
 print $mismatchLocsFile join("\t", "taxid", "superkingdom", "kingdom", "phylum", 
 			 "class", "order", "family", "genus", "species", "direction", 
 			 "mismatchLoc", "count", "totalCount"), "\n";
