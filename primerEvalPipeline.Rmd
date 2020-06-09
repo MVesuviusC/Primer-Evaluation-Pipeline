@@ -315,23 +315,34 @@ primerMismatches$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <-
 
 for(mmType in c("mismatchTotal", "mismatch5Prime")) {
 	for(target in c("On-target", "Off-target")) {
-                df <- primerMismatches %>%
-		   select(., class, order, family, direction, !! mmType, OnTarget) %>%
-		   gather(., "Level", "Name", -direction, -!! mmType, -OnTarget) %>%
-		   filter(is.na(Name) == FALSE, OnTarget == !! target) %>%
-		   group_by_at(vars(!! mmType, Level, Name, direction)) %>%
-		   tally(name = "Count") %>%
-		   ungroup() %>%
-		   mutate(Level = factor(Level, levels = c(c("class", "order", "family"))))
+    df <- primerMismatches %>%
+		  select(., class, order, family, direction, !! mmType, OnTarget) %>%
+		  gather(., "Level", "Name", -direction, -!! mmType, -OnTarget) %>%
+		  filter(is.na(Name) == FALSE, OnTarget == !! target) %>%
+		  group_by_at(vars(!! mmType, Level, Name, direction)) %>%
+		  tally(name = "Count") %>%
+		  ungroup() %>%
+		  mutate(Level = factor(Level, levels = c(c("class", "order", "family"))))
 																				 
-                png(paste(params$outDir, "/figures/primer", mmType, "Mismatches", target, ".png", sep = ""), width = 8000, height = 5000, res = 300)
+    png(paste(params$outDir, 
+              "/figures/primer", 
+              mmType, 
+              "Mismatches", 
+              target, 
+              ".png", 
+              sep = ""), 
+        width = 8000, 
+        height = 5000, 
+        res = 300)
 
 		print(ggplot(df, aes(x = Name, y = get(mmType), fill = Count, label = Count)) +
 		        geom_tile(size = 1, color = "white") +
-			facet_wrap(~ direction + Level, ncol = 2, scales = "free_x") +
-			geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 3) +
-			theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
-			ggtitle(paste(gsub("mismatch", "", mmType), "primer mismatches\nNumber in each box is the number of sequences with that many mismatches")) +
+			      facet_wrap(~ direction + Level, ncol = 2, scales = "free_x") +
+      			geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 3) +
+      			theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+      			ggtitle(paste(gsub("mismatch", "", mmType), 
+      			              "primer mismatches", 
+      			              "\nNumber in each box is the number of sequences with that many mismatches")) +
 			      xlab("") +
 			      ylab(""))
 		dev.off()
@@ -340,6 +351,48 @@ for(mmType in c("mismatchTotal", "mismatch5Prime")) {
 
 summaryTable$MeanOnTarget5PrimeMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatch5Prime)
 summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatchTotal)
+
+####### Mismatch locations
+primerMismatchLocs <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatchLocs.txt", sep = ""), stringsAsFactors = FALSE, comment.char = "#", header = TRUE)
+
+primerMismatchLocs$direction <- gsub("for", "Forward", primerMismatchLocs$direction)
+primerMismatchLocs$direction <- gsub("rev", "Reverse", primerMismatchLocs$direction)
+
+primerMismatchLocs$OnTarget <- "Off-target"
+primerMismatchLocs$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <- "On-target"
+
+
+colsForTarget <- list("On-target" = "#1b9e77",
+                      "Off-target" = "#d95f02")
+
+
+for(target in c("On-target", "Off-target")) {
+  png(paste(params$outDir, 
+            "/figures/primer", 
+            "MismatchLoc", 
+            target, 
+            ".png", 
+            sep = ""), 
+      width = 4000, 
+      height = 2000, 
+      res = 300)
+  
+  print(primerMismatchLocs %>%
+    filter(OnTarget == target) %>%
+    ggplot(., aes(x = mismatchLoc, y = count/totalCount)) + 
+      geom_bar(stat = "identity", fill = colsForTarget[[target]]) + 
+      facet_wrap(~ direction, ncol = 1) +
+      labs(title = paste("Proportion of amplifiable targets with primer mismatches at each location\n", 
+                         target,
+                         " species",
+                         sep = "")) + 
+      ylim(0,1) +
+      xlab("5' end <-----------Primer position-----------> 3' end") +
+      ylab("") + 
+      scale_x_reverse(breaks = 1:max(primerMismatchLocs$mismatchLoc, na.rm = TRUE))
+  )
+  dev.off()
+}
 ```
 
 ```{r plotDistanceSummary, dependson = 'bsPrimerTree', eval = TRUE}
