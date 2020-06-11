@@ -265,7 +265,7 @@ ampLenDf <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/ampliconLengths.tx
 
 ampLenDf$onTarget <- grepl(targetTaxa, ampLenDf[[targetLevel]])
 
-png(paste(params$outDir, "/figures/ampliconLens.png", sep = ""), width = 2500, height = 2500, res = 300)
+png(paste(params$outDir, "/figures/ampliconLengths.png", sep = ""), width = 2500, height = 2500, res = 300)
   ggplot(ampLenDf, aes(x = as.numeric(length), y = count, fill = onTarget)) + 
     geom_bar(stat = "identity") +
     ggtitle("Amplicon Lengths") +
@@ -314,7 +314,7 @@ primerMismatches$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <-
 ### plots
 
 for(mmType in c("mismatchTotal", "mismatch5Prime")) {
-	for(target in c("On-target", "Off-target")) {
+	for(target in unique(primerMismatches$OnTarget)) {
     df <- primerMismatches %>%
 		  select(., class, order, family, direction, !! mmType, OnTarget) %>%
 		  gather(., "Level", "Name", -direction, -!! mmType, -OnTarget) %>%
@@ -366,7 +366,7 @@ colsForTarget <- list("On-target" = "#1b9e77",
                       "Off-target" = "#d95f02")
 
 
-for(target in c("On-target", "Off-target")) {
+for(target in unique(primerMismatchLocs$OnTarget)) {
   png(paste(params$outDir, 
             "/figures/primer", 
             "MismatchLoc", 
@@ -407,7 +407,10 @@ distanceSummary <- distance %>%
 levelsToUse <- c("family", "genus", "species")
 
 for(levelInUse in levelsToUse) {
-  png(paste(params$outDir, "/figures/distancePlot_", levelInUse, ".png", sep = ""), width = 5000, height = 3000, res = 300)
+  png(paste(params$outDir, "/figures/distancePlot_", levelInUse, ".png", sep = ""), 
+      width = 5000, 
+      height = 3000, 
+      res = 300)
   print(ggplot(subset(distanceSummary, CompLevel == levelInUse), aes(x = get(levelInUse), y = MeanDist, fill = OnTarget)) + 
     geom_bar(stat = "identity") + 
     geom_hline(data = subset(distanceSummary, CompLevel == levelInUse & OnTarget == TRUE), aes(yintercept = Average), size = 2, color = "red") +
@@ -711,7 +714,7 @@ couldHaveHit/missedTaxa.txt
 didHit/SpeciesOnTarget.txt
 
 delete:
-paste(params$outDir, bsPrimerTreeOut/ampliconLengths.txt)
+bsPrimerTreeOut/ampliconLengths.txt
 bsPrimerTreeOut/distanceSummary.txt
 bsPrimerTreeOut/primerMismatches.txt
 bsPrimerTreeOut/seqsToGet.txt
@@ -741,9 +744,9 @@ if(params$cleanup == TRUE) {
                     "bsPrimerTreeOut/seqsToGet.txt",
                     "bsPrimerTreeOut/seqsWithTaxa.fasta",
                     "bsPrimerTreeOut/taxaSummary.txt",
-		    "bsPrimerTreeOut/*.svg",
-		    "bsPrimerTreeOut/dendro*.txt",
-		    "couldHaveHit/blastParsed.txt",
+                    "bsPrimerTreeOut/*.svg",
+                    "bsPrimerTreeOut/dendro*.txt",
+                    "couldHaveHit/blastParsed.txt",
                     "couldHaveHit/potentialHits.txt",
                     "couldHaveHit/potentialSpeciesOnTarget.txt",
                     "reBlastOut/blastResults.txt.gz",
@@ -763,7 +766,5 @@ if(params$cleanup == TRUE) {
   gzip_command <- paste("gzip", paste(params$outDir, gzip_file_list, sep = "/", collapse = " "))
   system(gzip_command)
 }
-
-
 ```
 
