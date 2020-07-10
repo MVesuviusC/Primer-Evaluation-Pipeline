@@ -193,6 +193,7 @@ targetTaxa <- as.character(primerDf$TargetTaxa[1]) # first letter should be capi
 targetLevel <- tolower(as.character(primerDf$TargetLevel[1])) # needs to be lowercase to match later
 
 Sys.setenv(targetTaxa = targetTaxa)
+Sys.setenv(targetLevel = targetLevel)
 
 # check if primer file is in the right format and if not knit_exit()
 
@@ -574,6 +575,11 @@ potentialSpecies <- as.data.frame(potentialHits[grep(paste(bannedWords, collapse
 write.table(potentialSpecies, file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
 ```
 
+### Generate list of all known species within the target taxa
+
+```{bash listAllSpecies, dependson = 'getPrimers', eval = TRUE}
+getTaxaLocal.pl --dbName ${taxonomyDb} --taxName ${targetTaxa},${targetLevel} > ${outDir}/couldHaveHit/knownSpecies.txt 
+```
 
 
 
@@ -669,6 +675,23 @@ ggplot(missedSummary, aes(x = reorder(xlabs, -PercentHit), y = PercentHit * 100)
   ylim(0, 100) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 dev.off()
+
+
+### Percent of known species that were amplified
+knownSpecies <- read.delim(file = paste(params$outDir, "/couldHaveHit/knownSpecies.txt", sep = ""), header = T, stringsAsFactors = FALSE)
+# Get rid of any entry with banned words
+knownSpecies <- knownSpecies[grep(paste(bannedWords, collapse = "|"), knownSpecies$species, invert = T),]
+
+unseqdSpecies <- knownSpecies[!knownSpecies$species %in% potentialSpecies]
+summaryTable$PercentSpeciesSequenced <- nrow(unseqdSpecies) / nrow(knownSpecies)
+write.table(unseqdSpecies, file = paste(params$outDir, "/couldHaveHit/unsequencedSpecies.txt", sep = ""), quote = F, sep = "\t", row.names = F)
+
+
+
+
+
+
+
 
 ### Taxonomic specificity
 pluralWords <- list(Order = "Orders", Family = "Families", Species = "Species", Genus = "Genera")
