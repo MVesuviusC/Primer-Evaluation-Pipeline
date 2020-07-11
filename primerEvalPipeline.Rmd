@@ -207,13 +207,18 @@ These are words found in species names that indicate that the species named is u
 
   * sp.
   * cf.
-  * isolate
+  * isolate 
   * uncultured
   * symbiont
   * unidentified
+  * unclassified
+  * environmental
+  
+  Maybe add vector and construct?
+  ------ What to do about single word species (genus only)????
 
 ```{r bannedWords, cache = FALSE, eval = TRUE}
-bannedWords <- c("sp\\.", "cf\\.", "isolate", "uncultured", "symbiont", "unidentified")
+bannedWords <- c("sp\\.", "cf\\.", "isolate", "uncultured", "symbiont", "unidentified", "unclassified", "environmental")
 write(bannedWords, file = paste(params$outDir, "/bannedWords.txt", sep = ""), sep = "\t")
 ```
 
@@ -577,7 +582,7 @@ write.table(potentialSpecies, file = paste(params$outDir, "/couldHaveHit/potenti
 
 ### Generate list of all known species within the target taxa
 
-```{bash listAllSpecies, dependson = 'getPrimers', eval = TRUE}
+```{bash listAllSpecies, dependson = 'bsPrimerTree', eval = TRUE}
 getTaxaLocal.pl --dbName ${taxonomyDb} --taxName ${targetTaxa},${targetLevel} > ${outDir}/couldHaveHit/knownSpecies.txt 
 ```
 
@@ -654,7 +659,7 @@ missedSpecies <- potentialHits[potentialHits$species %in% potentialSpecies[!pote
 write.table(missedSpecies, file = paste(params$outDir, "/couldHaveHit/missedTaxa.txt", sep = ""), quote = F, sep = "\t", row.names = F)
 
 PercentFound <- (length(potentialSpecies) - nrow(missedSpecies)) / length(potentialSpecies) * 100
-summaryTable$PercentKnownSeqsAmplified <- PercentFound 
+summaryTable$PercentSeqdSeqsAmplified <- PercentFound 
 
 missedSummary <- potentialHits %>% 
   select(., -species) %>% 
@@ -682,15 +687,9 @@ knownSpecies <- read.delim(file = paste(params$outDir, "/couldHaveHit/knownSpeci
 # Get rid of any entry with banned words
 knownSpecies <- knownSpecies[grep(paste(bannedWords, collapse = "|"), knownSpecies$species, invert = T),]
 
-unseqdSpecies <- knownSpecies[!knownSpecies$species %in% potentialSpecies]
-summaryTable$PercentSpeciesSequenced <- nrow(unseqdSpecies) / nrow(knownSpecies)
+unseqdSpecies <- knownSpecies[!knownSpecies$species %in% potentialSpecies,]
+summaryTable$PercentKnownSpeciesSequenced <- (1 - (nrow(unseqdSpecies) / nrow(knownSpecies))) * 100
 write.table(unseqdSpecies, file = paste(params$outDir, "/couldHaveHit/unsequencedSpecies.txt", sep = ""), quote = F, sep = "\t", row.names = F)
-
-
-
-
-
-
 
 
 ### Taxonomic specificity
@@ -719,7 +718,7 @@ summaryTable <- cbind(summaryTable, topHitSummary)
 ### primer mismatches
 
 
-write.table(summaryTable, file = paste(params$outDir, "/overallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = F)
+write.table(t(summaryTable), file = paste(params$outDir, "/overallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = T, col.names = F)
 
 ```
 
