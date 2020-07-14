@@ -207,6 +207,8 @@ These are words found in species names that indicate that the species named is u
 
   * sp.
   * cf.
+  * aff.
+  * affin.
   * isolate 
   * uncultured
   * symbiont
@@ -216,9 +218,11 @@ These are words found in species names that indicate that the species named is u
   
   Maybe add vector and construct?
   ------ What to do about single word species (genus only)????
+  
+  If editing this, be sure to also edit scripts/findTopBlastHitsWithTaxa.pl
 
 ```{r bannedWords, cache = FALSE, eval = TRUE}
-bannedWords <- c("sp\\.", "cf\\.", "isolate", "uncultured", "symbiont", "unidentified", "unclassified", "environmental")
+bannedWords <- c("sp\\.", "cf\\.", "aff\\.", "affin\\.", "isolate", "uncultured", "symbiont", "unidentified", "unclassified", "environmental")
 write(bannedWords, file = paste(params$outDir, "/bannedWords.txt", sep = ""), sep = "\t")
 ```
 
@@ -269,6 +273,11 @@ This includes all hits from all species, so there may be inflation of certain va
 ```{r plotAmpLens, dependson = 'bsPrimerTree', eval = TRUE}
 ampLenDf <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/ampliconLengths.txt", sep = ""), header = TRUE)
 
+# Get rid of hits with "banned" words
+ampLenDf <- as.data.frame(ampLenDf[grep(paste(bannedWords, collapse = "|"), ampLenDf$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+ampLenDf <- ampLenDf[grep(" ", ampLenDf$species),]
+
 ampLenDf$onTarget <- grepl(targetTaxa, ampLenDf[[targetLevel]])
 
 png(paste(params$outDir, "/figures/ampliconLengths.png", sep = ""), width = 2500, height = 2500, res = 300)
@@ -282,7 +291,6 @@ png(paste(params$outDir, "/figures/ampliconLengths.png", sep = ""), width = 2500
 dev.off()
 
 summaryTable$MedianOnTargetAmpLen <- median(subset(ampLenDf, onTarget == TRUE)$length)
-
 ```
 
 ### List on-target hits
@@ -301,6 +309,8 @@ bsPrimerTreeHits <- subset(bsPrimerTreeHits, get(targetLevel) == targetTaxa)
 
 # Get rid of hits with "banned" words
 bsPrimerTreeHits <- as.data.frame(bsPrimerTreeHits[grep(paste(bannedWords, collapse = "|"), bsPrimerTreeHits$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+bsPrimerTreeHits <- bsPrimerTreeHits[grep(" ", bsPrimerTreeHits$species),]
 
 write.table(bsPrimerTreeHits, file = paste(params$outDir, "/didHit/speciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
 ```
@@ -309,6 +319,11 @@ write.table(bsPrimerTreeHits, file = paste(params$outDir, "/didHit/speciesOnTarg
 Would like to also plot number of mismatches for sub-taxa to show how bias might manifest
 ```{r plotPrimerMismatch, dependson = 'bsPrimerTree', eval = TRUE}
 primerMismatches <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatches.txt", sep = ""), stringsAsFactors = FALSE)
+
+# Get rid of hits with "banned" words
+primerMismatches <- as.data.frame(primerMismatches[grep(paste(bannedWords, collapse = "|"), primerMismatches$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+primerMismatches <- primerMismatches[grep(" ", primerMismatches$species),]
 
 primerMismatches$direction <- gsub("for", "Forward", primerMismatches$direction)
 primerMismatches$direction <- gsub("rev", "Reverse", primerMismatches$direction)
@@ -361,6 +376,11 @@ summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarg
 ####### Mismatch locations
 primerMismatchLocs <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatchLocs.txt", sep = ""), stringsAsFactors = FALSE, comment.char = "#", header = TRUE)
 
+# Get rid of hits with "banned" words
+primerMismatchLocs <- as.data.frame(primerMismatchLocs[grep(paste(bannedWords, collapse = "|"), primerMismatchLocs$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+primerMismatchLocs <- primerMismatchLocs[grep(" ", primerMismatchLocs$species),]
+
 primerMismatchLocs$direction <- gsub("for", "Forward", primerMismatchLocs$direction)
 primerMismatchLocs$direction <- gsub("rev", "Reverse", primerMismatchLocs$direction)
 
@@ -404,6 +424,11 @@ for(target in unique(primerMismatchLocs$OnTarget)) {
 ```{r plotDistanceSummary, dependson = 'bsPrimerTree', eval = TRUE}
 distance <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/distanceSummary.txt", sep = ""))
 distance$OnTarget <- grepl(targetTaxa, distance[[targetLevel]])
+
+# Get rid of hits with "banned" words
+distance <- as.data.frame(distance[grep(paste(bannedWords, collapse = "|"), distance$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+distance <- distance[grep(" ", distance$species),]
 
 distanceSummary <- distance %>%
   group_by(., CompLevel, OnTarget) %>%
@@ -508,16 +533,7 @@ getTaxaLocal.pl --dbName ${taxonomyDb} --taxids ${outDir}/reBlastOut/taxids.txt 
 ### Use taxonomy and blast output to keep all equal top hits
 output: 
 
-This script kicks out any hit where species name contains "banned words":
-
-  * sp.
-  * cf.
-  * isolate
-  * uncultured
-  * symbiont
-  * unidentified
-
-that indicate that the taxonomy is uncertain
+This script kicks out any hit where species name contains "banned words" that indicates that the taxonomy is uncertain
 
 
 ```{r, echo = F, cache = FALSE}
@@ -547,7 +563,6 @@ perl scripts/countNumInRank.pl --input ${outDir}/couldHaveHit/blastParsed.txt --
 
 
 ## Find species with sequences in the nt database that could have been found by bsPrimerBlast
-banned words: sp., uncultured, unidentified, cf., isolate, symbiont
 
 ###### Need to deal with the situation where "N"s in the sequence prevent finding the primer
 ```{bash parsePotentialHits, dependson = 'parseTopBlastHits', eval = TRUE}
@@ -560,7 +575,6 @@ perl scripts/getPotentialHits.pl \
 ```
 
 ### Generate list of on-target species with sequences in the nt database
-
 ```{r listHitSpecies, dependson = 'parsePotentialHits', eval = TRUE}
 potentialHits <- read.delim(paste(params$outDir, "/couldHaveHit/potentialHits.txt", sep = ""))
 # The taxa level should always be lowercase, but might be supplied uppercase
@@ -576,11 +590,16 @@ potentialHits <- subset(potentialHits, get(targetLevel) == targetTaxa)
 
 # Get rid of hits with "banned" words
 potentialSpecies <- as.data.frame(potentialHits[grep(paste(bannedWords, collapse = "|"), potentialHits$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+potentialHits <- potentialHits[grep(" ", potentialHits$species),]
 
 write.table(potentialSpecies, file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
 ```
 
+
 ### Generate list of all known species within the target taxa
+Vasco Elbrecht brought up an important point. For sequences contributed to the database, the primers used to generate the sequence are usually trimmed. This means that any sequence in the database genrated using the primers currently tested will be defined as "unsequenced" because the sequence does not include the primer sequences.
+
 
 ```{bash listAllSpecies, dependson = 'bsPrimerTree', eval = TRUE}
 getTaxaLocal.pl --dbName ${taxonomyDb} --taxName ${targetTaxa},${targetLevel} > ${outDir}/couldHaveHit/knownSpecies.txt 
@@ -609,9 +628,10 @@ Primer taxonomic specificity
 ```{r makingSummaryTable, eval = TRUE}
 ### Percent of on-target amplifiable hits
 taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""), stringsAsFactors = FALSE)
+# Get rid of any hit with banned words
 taxaSummary <- taxaSummary[grep(paste(bannedWords, collapse = "|"), taxaSummary$species, invert = T),]
-
-################################### should use outDir/didHit/speciesOnTarget.txt
+# Get rid of hits with only genus (no space in name)
+taxaSummary <- taxaSummary[grep(" ", taxaSummary$species),]
 
 taxaSummaryOnTarget <- subset(taxaSummary, get(targetLevel) == targetTaxa)
 
@@ -651,6 +671,7 @@ dev.off()
 
 #### Species that could have been amplified
 potentialHits <- read.delim(file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), header = T, stringsAsFactors = FALSE)
+
 potentialSpecies <- as.character(unique(potentialHits$species))
 potentialHits$WasHit <- potentialHits$species %in% potentialSpecies[potentialSpecies %in% taxaSummaryOnTarget$species]
 
@@ -659,7 +680,7 @@ missedSpecies <- potentialHits[potentialHits$species %in% potentialSpecies[!pote
 write.table(missedSpecies, file = paste(params$outDir, "/couldHaveHit/missedTaxa.txt", sep = ""), quote = F, sep = "\t", row.names = F)
 
 PercentFound <- (length(potentialSpecies) - nrow(missedSpecies)) / length(potentialSpecies) * 100
-summaryTable$PercentSeqdSeqsAmplified <- PercentFound 
+summaryTable$PercentKnownSeqsAmplified <- PercentFound 
 
 missedSummary <- potentialHits %>% 
   select(., -species) %>% 
@@ -686,6 +707,8 @@ dev.off()
 knownSpecies <- read.delim(file = paste(params$outDir, "/couldHaveHit/knownSpecies.txt", sep = ""), header = T, stringsAsFactors = FALSE)
 # Get rid of any entry with banned words
 knownSpecies <- knownSpecies[grep(paste(bannedWords, collapse = "|"), knownSpecies$species, invert = T),]
+# Get rid of hits with only genus (no space in name)
+knownSpecies <- knownSpecies[grep(" ", knownSpecies$species),]
 
 unseqdSpecies <- knownSpecies[!knownSpecies$species %in% potentialSpecies,]
 summaryTable$PercentKnownSpeciesSequenced <- (1 - (nrow(unseqdSpecies) / nrow(knownSpecies))) * 100
@@ -718,7 +741,7 @@ summaryTable <- cbind(summaryTable, topHitSummary)
 ### primer mismatches
 
 
-write.table(t(summaryTable), file = paste(params$outDir, "/overallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = T, col.names = F)
+write.table(summaryTable, file = paste(params$outDir, "/overallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = F)
 
 ```
 
