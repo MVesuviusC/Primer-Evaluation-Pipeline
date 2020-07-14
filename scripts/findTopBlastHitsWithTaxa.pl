@@ -85,20 +85,23 @@ while (my $input = <$blastFh>) {
 	if($score >= $maxScore) {
 	    if(exists($taxaHash{$sTaxid})) {
 		# Don't print any hit that has uncertain taxonomic assignment
-		if($taxaHash{$sTaxid}{species} !~ /sp\.|cf\.|isolate|uncultured|symbiont|unidentified|NA/i) {
-		    print join("\t", 
-			       $fullQueryName, 
-			       $sAcc,
-			       $sTaxid,
-			       $taxaHash{$sTaxid}{superkingdom},
-			       $taxaHash{$sTaxid}{kingdom},
-			       $taxaHash{$sTaxid}{phylum},
-			       $taxaHash{$sTaxid}{class},
-			       $taxaHash{$sTaxid}{order}, 
-			       $taxaHash{$sTaxid}{family}, 
-			       $taxaHash{$sTaxid}{genus}, 
-			       $taxaHash{$sTaxid}{species},
-			       ), "\n";
+		if($taxaHash{$sTaxid}{species} !~ /sp\.|cf\.|aff\.|affin\.|isolate|uncultured|symbiont|unidentified|unclassified|environmental|NA/i) {
+		    # Don't print any hits where only the genus is present (no space)
+		    if($taxaHash{$sTaxid}{species} =~ / /) {
+			print join("\t", 
+				   $fullQueryName, 
+				   $sAcc,
+				   $sTaxid,
+				   $taxaHash{$sTaxid}{superkingdom},
+				   $taxaHash{$sTaxid}{kingdom},
+				   $taxaHash{$sTaxid}{phylum},
+				   $taxaHash{$sTaxid}{class},
+				   $taxaHash{$sTaxid}{order}, 
+				   $taxaHash{$sTaxid}{family}, 
+				   $taxaHash{$sTaxid}{genus}, 
+				   $taxaHash{$sTaxid}{species},
+			    ), "\n";
+		    }
 		}
 	    }
 	    $maxScore = $score;
