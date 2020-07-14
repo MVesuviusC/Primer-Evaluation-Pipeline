@@ -265,7 +265,7 @@ bsPrimerBlast.pl \
 
 ### Plot amplicon length distribution 
 This includes all hits from all species, so there may be inflation of certain values if one or more species has tons of hits.
-Facet this plot by on-target
+
 ```{r plotAmpLens, dependson = 'bsPrimerTree', eval = TRUE}
 ampLenDf <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/ampliconLengths.txt", sep = ""), header = TRUE)
 
