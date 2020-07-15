@@ -741,7 +741,7 @@ summaryTable <- cbind(summaryTable, topHitSummary)
 ### primer mismatches
 
 
-write.table(summaryTable, file = paste(params$outDir, "/overallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = F)
+write.table(t(summaryTable), file = paste(params$outDir, "/overallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = T, col.names = F)
 
 ```
 
