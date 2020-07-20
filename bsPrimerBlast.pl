@@ -21,6 +21,7 @@ use Pod::Usage;
 my $verbose;
 my $help;
 my $primerInput;
+my $maxPrimersPerFile = 500;
 my $forward;
 my $reverse;
 my $primerName;
@@ -35,12 +36,11 @@ my $primerTipMismatch = 2;
 my $totalMismatchCount = 6;
 my $debug;
 
-######## Want to be able to input primers directly w/o a file -f -r
-
 # i = integer, s = string
 GetOptions ("verbose"               => \$verbose,
             "help"                  => \$help,
             "primerInput=s"         => \$primerInput,
+            "maxPrimersPerFile=i"   => \$maxPrimersPerFile,
 	    "forward=s"             => \$forward,
 	    "reverse=s"             => \$reverse,
 	    "primerName=s"          => \$primerName,
@@ -101,11 +101,13 @@ my %degenerateRegexHash = ( #hash of arrays - degenerate bases with matching bas
        );
 
 my %primerHash; # primerHash{primerName} = (forward, reverse) reverse is revComp
+my $primerOutFileNum = 1;
 my $nCount = 20;
 my $lastSgi = "";
 my $lastLine = "";
 my $blastEntryCounter = 1;
 my %resultsHash;
+my $numberOfBlastcmdCalls = 0;
 
 ##############################
 # Code
@@ -130,7 +132,7 @@ if(!$tempName) {
 
 ##############################
 ### Create file of primer(s) for blastn input
-open SEQSOUT, ">", $tempName . ".txt";
+
 
 if($forward) { # primers provided directly
     addPrimersToHash($forward, $reverse, $primerName);
@@ -150,63 +152,62 @@ if($forward) { # primers provided directly
     close PRIMERINPUTFILE; ############ need to change these to $primerInputFH style 
 }
 
-close SEQSOUT;
 
 ##############################
 ### Run blastn
 if($verbose) {
     print STDERR "starting BLAST\n";
 }
+for(my $i = 1; $i < $primerOutFileNum; $i++) {
+    print STDERR "Running blast on file number " . $i . "\n";
+    my $blastCmd =
+	$blastVer . " " .
+	"-db " . $blastDb . " " .
+	"-query " . $tempName . "_" . $i . ".txt " .
+	"-task blastn " .
+	"-evalue 30000 " .
+	"-word_size 7 " .
+	"-max_hsps 100 " .
+	"-max_target_seqs 50000 " .
+	"-num_threads " . $processors . " " .
+	"-reward 1 " .
+	"-penalty -1 " .
+	"-gapopen 2 " .
+	"-gapextend 1 " .
+	"-outfmt \"6 qseqid sgi qlen qstart qend sstart send slen sstrand sscinames scomnames qseq sseq staxids\" " . 
+	"-ungapped " .
+	"-sum_stats true";
 
-my $blastCmd =
-    $blastVer . " " .
-    "-db " . $blastDb . " " .
-    "-query " . $tempName . ".txt " .
-    "-task blastn " .
-    "-evalue 30000 " .
-    "-word_size 7 " .
-    "-max_hsps 100 " .
-    "-max_target_seqs 50000 " .
-    "-num_threads " . $processors . " " .
-    "-reward 1 " .
-    "-penalty -1 " .
-    "-gapopen 2 " .
-    "-gapextend 1 " .
-    "-outfmt \"6 qseqid sgi qlen qstart qend sstart send slen sstrand sscinames scomnames qseq sseq staxids\" " . 
-    "-ungapped " .
-    "-sum_stats true";
 
+    open BLASTRESULTS, "-|", $blastCmd or die "Blast query failed\n";
 
-open BLASTRESULTS, "-|", $blastCmd or die "Blast query failed\n";
+    while(my $input = <BLASTRESULTS>) {
+	chomp $input;
+	my @parsed = parseBlast($input);
 
-my $numberOfBlastcmdCalls = 0;
+	if(scalar(@parsed) > 0) {
+	    my $shouldBeIncluded = 1;
+	    my($qseqid, $sgi, $staxids, $sscinames, $scomnames, $ampStart, $ampEnd,
+	       $ampLength, $mismatchLoc, $mismatch3Prime, $lastMismatchLoc,
+	       $lastMismatch3Prime, $qseq, $sseq, $lastQseq, $lastSseq) = @parsed;
+	    if(exists($resultsHash{$qseqid . "\t" . $sgi})) {
+		for my $result (@{ $resultsHash{$qseqid . "\t" . $sgi} }) {
+		    my @resultArray = split "\t", $result;
 
-while(my $input = <BLASTRESULTS>) {
-    chomp $input;
-    my @parsed = parseBlast($input);
-
-    if(scalar(@parsed) > 0) {
-	my $shouldBeIncluded = 1;
-	my($qseqid, $sgi, $staxids, $sscinames, $scomnames, $ampStart, $ampEnd,
-	   $ampLength, $mismatchLoc, $mismatch3Prime, $lastMismatchLoc,
-	   $lastMismatch3Prime, $qseq, $sseq, $lastQseq, $lastSseq) = @parsed;
-	if(exists($resultsHash{$qseqid . "\t" . $sgi})) {
-	    for my $result (@{ $resultsHash{$qseqid . "\t" . $sgi} }) {
-		my @resultArray = split "\t", $result;
-
-		if(abs($resultArray[5] - $ampStart) < 20 && abs($resultArray[6] - $ampEnd) < 20) {
-		    $shouldBeIncluded = 0; # amplicon is the same as a previous one
+		    if(abs($resultArray[5] - $ampStart) < 20 && abs($resultArray[6] - $ampEnd) < 20) {
+			$shouldBeIncluded = 0; # amplicon is the same as a previous one
+		    }
 		}
 	    }
+	    if($shouldBeIncluded == 1) {
+		push @{ $resultsHash{$qseqid . "\t" . $sgi} }, join("\t", @parsed);
+	    }
 	}
-	if($shouldBeIncluded == 1) {
-	    push @{ $resultsHash{$qseqid . "\t" . $sgi} }, join("\t", @parsed);
+	if($verbose && $blastEntryCounter % 1000 == 0) {
+	    print STDERR "Parsing BLAST entry $blastEntryCounter                  \r";
 	}
+	$blastEntryCounter++;
     }
-    if($verbose && $blastEntryCounter % 1000 == 0) {
-        print STDERR "Parsing BLAST entry $blastEntryCounter                  \r";
-    }
-    $blastEntryCounter++;
 }
 
 # print header
@@ -237,7 +238,7 @@ for my $primerGi (keys %resultsHash){
 }
 
 
-system("rm $tempName" . ".txt ");
+system("rm $tempName" . "_*.txt ");
 
 if($verbose) {
     print STDERR "\nDone!\n";
@@ -273,12 +274,27 @@ sub addPrimersToHash {
     }
     
     my $i = 0;
+    my $primerEntriesInFile = 0;
+    my $primersOutFH;
+    
+    open $primersOutFH, ">", $tempName . "_" . $primerOutFileNum . ".txt";
+    
     for my $seq1 (@primerFArray) {
         for my $seq2 (@primerRArray) {
-            print SEQSOUT ">", $name, "\n", $seq1, "N" x $nCount, revComp($seq2), "\n";
+	    if($primerEntriesInFile >= $maxPrimersPerFile) {
+		$primerOutFileNum++;
+		$primerEntriesInFile = 0;
+		close $primersOutFH;
+		open $primersOutFH, ">", $tempName . "_" . $primerOutFileNum . ".txt";
+	    }
+	    
+            print $primersOutFH ">", $name, "\n", $seq1, "N" x $nCount, revComp($seq2), "\n";
+            $primerEntriesInFile++;
             $i++;
         }
     }
+    close $primersOutFH;
+    
     if($verbose) {
 	print STDERR $i, " primer combinations for ", $name, "\n";
     }
