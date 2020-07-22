@@ -428,7 +428,8 @@ distance$OnTarget <- grepl(targetTaxa, distance[[targetLevel]])
 # Get rid of hits with "banned" words
 distance <- as.data.frame(distance[grep(paste(bannedWords, collapse = "|"), distance$species, perl = T, invert = T),])
 # Get rid of hits with only genus (no space in name)
-distance <- distance[grep(" ", distance$species),]
+# Need to keep -
+distance <- distance[grep("[ ^-]", distance$species, perl = TRUE),]
 
 distanceSummary <- distance %>%
   group_by(., CompLevel, OnTarget) %>%
@@ -730,7 +731,7 @@ summaryTable <- cbind(summaryTable, topHitMeans)
 topHitSummary <- read.delim(file = paste(params$outDir, "/topHitSummary.txt", sep = ""), header = T, stringsAsFactors = FALSE)
 topHitSummary <- topHitSummary %>% 
   group_by(., TaxaLevel) %>% 
-  summarise(., PercentSingleHit = (sum(UniqueTaxaHit == 1) / length(UniqueTaxaHit))) %>% 
+  summarise(., PercentSingleHit = 100 * (sum(UniqueTaxaHit == 1) / length(UniqueTaxaHit))) %>% 
   ungroup() %>% 
   spread(., TaxaLevel, PercentSingleHit)
 
