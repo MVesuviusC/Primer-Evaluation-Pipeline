@@ -3,6 +3,7 @@ use warnings;
 use strict;
 use Getopt::Long;
 use Pod::Usage;
+use List::Util qw(shuffle);
 
 
 ##############################
@@ -21,6 +22,8 @@ use Pod::Usage;
 my $verbose;
 my $help;
 my $primerInput;
+my $maxPrimersPerFile = 100;
+my $maxPrimerVariantsTested = 2000;
 my $forward;
 my $reverse;
 my $primerName;
@@ -35,25 +38,25 @@ my $primerTipMismatch = 2;
 my $totalMismatchCount = 6;
 my $debug;
 
-######## Want to be able to input primers directly w/o a file -f -r
-
 # i = integer, s = string
-GetOptions ("verbose"               => \$verbose,
-            "help"                  => \$help,
-            "primerInput=s"         => \$primerInput,
-	    "forward=s"             => \$forward,
-	    "reverse=s"             => \$reverse,
-	    "primerName=s"          => \$primerName,
-	    "blastVer=s"            => \$blastVer,
-            "blastDb=s"             => \$blastDb,
-            "processors=i"          => \$processors,
-            "tempName=s"            => \$tempName,
-	    "minAmpLen=i"           => \$minAmpLen,
-            "maxAmpLen=i"           => \$maxAmpLen,
-	    "primerTipLen=i"        => \$primerTipLen,
-	    "primerTipMismatch=i"   => \$primerTipMismatch,
-	    "totalMismatch=i"       => \$totalMismatchCount,
-	    "debug"                 => \$debug
+GetOptions ("verbose"                    => \$verbose,
+            "help"                       => \$help,
+            "primerInput=s"              => \$primerInput,
+            "maxPrimersPerFile=i"        => \$maxPrimersPerFile,
+            "maxPrimerVariantsTested=s"  => \$maxPrimerVariantsTested,
+	    "forward=s"                  => \$forward,
+	    "reverse=s"                  => \$reverse,
+	    "primerName=s"               => \$primerName,
+	    "blastVer=s"                 => \$blastVer,
+            "blastDb=s"                  => \$blastDb,
+            "processors=i"               => \$processors,
+            "tempName=s"                 => \$tempName,
+	    "minAmpLen=i"                => \$minAmpLen,
+            "maxAmpLen=i"                => \$maxAmpLen,
+	    "primerTipLen=i"             => \$primerTipLen,
+	    "primerTipMismatch=i"        => \$primerTipMismatch,
+	    "totalMismatch=i"            => \$totalMismatchCount,
+	    "debug"                      => \$debug
       )
  or pod2usage(0) && exit;
 
@@ -101,11 +104,13 @@ my %degenerateRegexHash = ( #hash of arrays - degenerate bases with matching bas
        );
 
 my %primerHash; # primerHash{primerName} = (forward, reverse) reverse is revComp
+my $primerOutFileNum = 1;
 my $nCount = 20;
 my $lastSgi = "";
 my $lastLine = "";
 my $blastEntryCounter = 1;
 my %resultsHash;
+my $numberOfBlastcmdCalls = 0;
 
 ##############################
 # Code
@@ -130,7 +135,7 @@ if(!$tempName) {
 
 ##############################
 ### Create file of primer(s) for blastn input
-open SEQSOUT, ">", $tempName . ".txt";
+
 
 if($forward) { # primers provided directly
     addPrimersToHash($forward, $reverse, $primerName);
@@ -150,7 +155,6 @@ if($forward) { # primers provided directly
     close PRIMERINPUTFILE; ############ need to change these to $primerInputFH style 
 }
 
-close SEQSOUT;
 
 ##############################
 ### Run blastn
@@ -158,55 +162,68 @@ if($verbose) {
     print STDERR "starting BLAST\n";
 }
 
-my $blastCmd =
-    $blastVer . " " .
-    "-db " . $blastDb . " " .
-    "-query " . $tempName . ".txt " .
-    "-task blastn " .
-    "-evalue 30000 " .
-    "-word_size 7 " .
-    "-max_hsps 100 " .
-    "-max_target_seqs 50000 " .
-    "-num_threads " . $processors . " " .
-    "-reward 1 " .
-    "-penalty -1 " .
-    "-gapopen 2 " .
-    "-gapextend 1 " .
-    "-outfmt \"6 qseqid sgi qlen qstart qend sstart send slen sstrand sscinames scomnames qseq sseq staxids\" " . 
-    "-ungapped " .
-    "-sum_stats true";
+# I did a bunch of testing and if you go over four processors for this step
+# it actually slows things down.
+# Also running ~100 fasta entries per batch seemed to be a good balance for RAM usage.
+my $blastnProc;
+if($processors <= 4) {
+	$blastnProc = $processors;
+} else {
+	$blastnProc = 4;
+}
+
+for(my $i = 1; $i <= $primerOutFileNum; $i++) {
+    if($verbose) {
+	print STDERR "Running blast on file number " . $i . "\n";
+    }
+    
+    my $blastCmd =
+	$blastVer . " " .
+	"-db " . $blastDb . " " .
+	"-query " . $tempName . "_" . $i . ".txt " .
+	"-task blastn " .
+	"-evalue 30000 " .
+	"-word_size 7 " .
+	"-max_hsps 100 " .
+	"-max_target_seqs 50000 " .
+	"-num_threads " . $blastnProc . " " .
+	"-reward 1 " .
+	"-penalty -1 " .
+	"-gapopen 2 " .
+	"-gapextend 1 " .
+	"-outfmt \"6 qseqid sgi qlen qstart qend sstart send slen sstrand sscinames scomnames qseq sseq staxids\" " . 
+	"-ungapped " .
+	"-sum_stats true";
 
 
-open BLASTRESULTS, "-|", $blastCmd or die "Blast query failed\n";
+    open BLASTRESULTS, "-|", $blastCmd or die "Blast query failed\n";
 
-my $numberOfBlastcmdCalls = 0;
+    while(my $input = <BLASTRESULTS>) {
+	chomp $input;
+	my @parsed = parseBlast($input);
 
-while(my $input = <BLASTRESULTS>) {
-    chomp $input;
-    my @parsed = parseBlast($input);
-
-    if(scalar(@parsed) > 0) {
-	my $shouldBeIncluded = 1;
-	my($qseqid, $sgi, $staxids, $sscinames, $scomnames, $ampStart, $ampEnd,
-	   $ampLength, $mismatchLoc, $mismatch3Prime, $lastMismatchLoc,
-	   $lastMismatch3Prime, $qseq, $sseq, $lastQseq, $lastSseq) = @parsed;
-	if(exists($resultsHash{$qseqid . "\t" . $sgi})) {
-	    for my $result (@{ $resultsHash{$qseqid . "\t" . $sgi} }) {
-		my @resultArray = split "\t", $result;
-
-		if(abs($resultArray[5] - $ampStart) < 20 && abs($resultArray[6] - $ampEnd) < 20) {
-		    $shouldBeIncluded = 0; # amplicon is the same as a previous one
+	if(scalar(@parsed) > 0) {
+	    my $shouldBeIncluded = 1;
+	    my($qseqid, $sgi, $staxids, $sscinames, $scomnames, $ampStart, $ampEnd,
+	       $ampLength, $mismatchLoc, $mismatch3Prime, $lastMismatchLoc,
+	       $lastMismatch3Prime, $qseq, $sseq, $lastQseq, $lastSseq) = @parsed;
+	    if(exists($resultsHash{$qseqid . "\t" . $sgi})) {
+		for my $result (@{ $resultsHash{$qseqid . "\t" . $sgi} }) {
+		    my @resultArray = split "\t", $result;
+		    if(abs($resultArray[5] - $ampStart) < 20 && abs($resultArray[6] - $ampEnd) < 20) {
+			$shouldBeIncluded = 0; # amplicon is the same as a previous one
+		    }
 		}
 	    }
+	    if($shouldBeIncluded == 1) {
+		push @{ $resultsHash{$qseqid . "\t" . $sgi} }, join("\t", @parsed);
+	    }
 	}
-	if($shouldBeIncluded == 1) {
-	    push @{ $resultsHash{$qseqid . "\t" . $sgi} }, join("\t", @parsed);
+	if($verbose && $blastEntryCounter % 1000 == 0) {
+	    print STDERR "Parsing BLAST entry $blastEntryCounter                  \r";
 	}
+	$blastEntryCounter++;
     }
-    if($verbose && $blastEntryCounter % 1000 == 0) {
-        print STDERR "Parsing BLAST entry $blastEntryCounter                  \r";
-    }
-    $blastEntryCounter++;
 }
 
 # print header
@@ -237,7 +254,7 @@ for my $primerGi (keys %resultsHash){
 }
 
 
-system("rm $tempName" . ".txt ");
+system("rm $tempName" . "_*.txt ") if (!$debug);
 
 if($verbose) {
     print STDERR "\nDone!\n";
@@ -272,15 +289,38 @@ sub addPrimersToHash {
         @primerRArray = addDegeneratePrimer($primer2);
     }
     
-    my $i = 0;
+    my $primerCombinations = 0;
+    my $primerEntriesInFile = 0;
+    my $primersOutFH; 
+    
+    open $primersOutFH, ">", $tempName . "_" . $primerOutFileNum . ".txt";
+    
+    # Randomize the arrays in case I need to subsample
+    # Don't shuffle if dubugging
+    @primerFArray = shuffle(@primerFArray) if(!$debug);
+    @primerRArray = shuffle(@primerRArray) if(!$debug);
+    
     for my $seq1 (@primerFArray) {
         for my $seq2 (@primerRArray) {
-            print SEQSOUT ">", $name, "\n", $seq1, "N" x $nCount, revComp($seq2), "\n";
-            $i++;
+	    if($primerEntriesInFile >= $maxPrimersPerFile) { # print out specified number of fasta entries per file
+		$primerOutFileNum++;
+		$primerEntriesInFile = 0;
+		close $primersOutFH;
+		open $primersOutFH, ">", $tempName . "_" . $primerOutFileNum . ".txt";
+	    }
+	    
+	    if($primerCombinations < $maxPrimerVariantsTested) { # keep only the first $maxPrimerVariantsTested (2000) combinations
+		print $primersOutFH ">", $name, "\n", $seq1, "N" x $nCount, revComp($seq2), "\n";
+		$primerEntriesInFile++;
+	    }
+            $primerCombinations++;
         }
     }
+    close $primersOutFH;
+    
     if($verbose) {
-	print STDERR $i, " primer combinations for ", $name, "\n";
+	print STDERR $primerCombinations, " primer combinations for ", $name, "\n";
+	print STDERR "A maximum of ", $maxPrimerVariantsTested, " combinations will be tested.\n";
     }
 }
 
