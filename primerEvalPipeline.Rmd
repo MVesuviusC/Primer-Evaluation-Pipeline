@@ -334,41 +334,41 @@ primerMismatches$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <-
 
 ### plots
 
-for(mmType in c("mismatchTotal", "mismatch5Prime")) {
-	for(target in unique(primerMismatches$OnTarget)) {
-    df <- primerMismatches %>%
-		  select(., class, order, family, direction, !! mmType, OnTarget) %>%
-		  gather(., "Level", "Name", -direction, -!! mmType, -OnTarget) %>%
-		  filter(is.na(Name) == FALSE, OnTarget == !! target) %>%
-		  group_by_at(vars(!! mmType, Level, Name, direction)) %>%
-		  tally(name = "Count") %>%
-		  ungroup() %>%
-		  mutate(Level = factor(Level, levels = c(c("class", "order", "family"))))
-																				 
-    png(paste(params$outDir, 
-              "/figures/primer", 
-              mmType, 
-              "Mismatches", 
-              target, 
-              ".png", 
-              sep = ""), 
-        width = 8000, 
-        height = 5000, 
-        res = 300)
-
-		print(ggplot(df, aes(x = Name, y = get(mmType), fill = Count, label = Count)) +
-		        geom_tile(size = 1, color = "white") +
-			      facet_wrap(~ direction + Level, ncol = 2, scales = "free_x") +
-      			geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 3) +
-      			theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
-      			ggtitle(paste(gsub("mismatch", "", mmType), 
-      			              "primer mismatches", 
-      			              "\nNumber in each box is the number of sequences with that many mismatches")) +
-			      xlab("") +
-			      ylab(""))
-		dev.off()
-	}
-}
+# for(mmType in c("mismatchTotal", "mismatch5Prime")) {
+# 	for(target in unique(primerMismatches$OnTarget)) {
+#     df <- primerMismatches %>%
+# 		  select(., class, order, family, direction, !! mmType, OnTarget) %>%
+# 		  gather(., "Level", "Name", -direction, -!! mmType, -OnTarget) %>%
+# 		  filter(is.na(Name) == FALSE, OnTarget == !! target) %>%
+# 		  group_by_at(vars(!! mmType, Level, Name, direction)) %>%
+# 		  tally(name = "Count") %>%
+# 		  ungroup() %>%
+# 		  mutate(Level = factor(Level, levels = c(c("class", "order", "family"))))
+# 																				 
+#     png(paste(params$outDir, 
+#               "/figures/primer", 
+#               mmType, 
+#               "Mismatches", 
+#               target, 
+#               ".png", 
+#               sep = ""), 
+#         width = 8000, 
+#         height = 5000, 
+#         res = 300)
+# 
+# 		print(ggplot(df, aes(x = Name, y = get(mmType), fill = Count, label = Count)) +
+# 		        geom_tile(size = 1, color = "white") +
+# 			      facet_wrap(~ direction + Level, ncol = 2, scales = "free_x") +
+#       			geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 3) +
+#       			theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+#       			ggtitle(paste(gsub("mismatch", "", mmType), 
+#       			              "primer mismatches", 
+#       			              "\nNumber in each box is the number of sequences with that many mismatches")) +
+# 			      xlab("") +
+# 			      ylab(""))
+# 		dev.off()
+# 	}
+# }
 
 summaryTable$MeanOnTarget5PrimeMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatch5Prime)
 summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatchTotal)
@@ -423,7 +423,9 @@ for(target in unique(primerMismatchLocs$OnTarget)) {
 
 ```{r plotDistanceSummary, dependson = 'bsPrimerTree', eval = TRUE}
 distance <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/distanceSummary.txt", sep = ""))
-distance$OnTarget <- grepl(targetTaxa, distance[[targetLevel]])
+
+distance$OnTarget <- "Off-target"
+distance$OnTarget[grepl(targetTaxa, distance[[targetLevel]])] <- "On-target"
 
 # Get rid of hits with "banned" words
 distance <- as.data.frame(distance[grep(paste(bannedWords, collapse = "|"), distance$species, perl = T, invert = T),])
@@ -438,17 +440,22 @@ distanceSummary <- distance %>%
   
 levelsToUse <- c("family", "genus", "species")
 
+colsForTarget <- c("#d95f02", "#1b9e77")
+
 for(levelInUse in levelsToUse) {
   png(paste(params$outDir, "/figures/distancePlot_", levelInUse, ".png", sep = ""), 
       width = 5000, 
       height = 3000, 
       res = 300)
-  print(ggplot(subset(distanceSummary, CompLevel == levelInUse), aes(x = get(levelInUse), y = MeanDist, fill = OnTarget)) + 
-    geom_bar(stat = "identity") + 
-    geom_hline(data = subset(distanceSummary, CompLevel == levelInUse & OnTarget == TRUE), aes(yintercept = Average), size = 2, color = "red") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-    ggtitle(paste(str_to_title(levelInUse), "\nDistance between individual sequences", "\nRed line is average for on-target sequences")) +
-    xlab(levelInUse)
+  print(ggplot(subset(distanceSummary, CompLevel == levelInUse), 
+               aes(x = MeanDist, 
+                   fill = OnTarget)) + 
+      geom_histogram(binwidth = 1) + 
+      scale_fill_manual(values = colsForTarget) +
+      ggtitle(paste(str_to_title(levelInUse), "\nDistance between individual sequences")) +
+      xlab("") +
+      facet_wrap(~ OnTarget, ncol = 1) +
+      theme(legend.position="none")
     )
   dev.off()
   
@@ -661,7 +668,9 @@ forCloud <- taxaSummary %>%
   mutate(., Taxa = replace_na(Taxa, "ND"))
 
 png(filename = paste(params$outDir, "/figures/taxaCloud.png", sep = ""), width = 4500, height = 4000, res = 600)
-ggplot(forCloud, aes(label = paste(Taxa, " (", Percent, "%)", sep = ""), size = log10Count, color = onTarget)) +
+ggplot(forCloud, aes(label = paste(Taxa, " (", Percent, "%)", sep = ""), 
+                     size = Count, 
+                     color = onTarget)) +
   geom_text_wordcloud_area(shape = "square", show.legend = TRUE) +
   scale_size_area(max_size = 3) +
   facet_wrap(~ Level, scales = "free") +
@@ -689,7 +698,7 @@ missedSummary <- potentialHits %>%
   group_by(., Level, Taxa) %>% 
   summarize(., PercentHit = sum(WasHit) / length(WasHit), NumHit = sum(WasHit), NumMissed = length(WasHit) - sum(WasHit)) %>% 
   ungroup() %>%
-  mutate(xlabs = paste(Taxa, "(", NumHit, ")", sep = ""))  
+  mutate(xlabs = paste(Taxa, "(", NumHit, "/", NumHit + NumMissed, ")", sep = ""))  
 
 missedSummary$Level <- factor(missedSummary$Level, levels = c("species", "genus", "family", "order", "class", "phylum", "kingdom"))
 
