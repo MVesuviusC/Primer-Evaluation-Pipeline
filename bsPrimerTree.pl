@@ -192,8 +192,8 @@ my $dbh = DBI->connect($dsn, $user, $password, {
 });
 
 ### Set up taxa db query
-my $query = 'SELECT species, genus, family, "order", 
-		class, phylum, kingdom, superkingdom, tax_name FROM 
+my $query = 'SELECT species_level, genus_level, family_level, order_level, 
+		class_level, phylum_level, kingdom_level, superkingdom_level, tax_name FROM 
 		taxonomy WHERE tax_id == ?';
 my $sth = $dbh->prepare($query);
 
@@ -242,14 +242,14 @@ while(my $blastInput = <$blastDbCmdResponse>) {
     
     my ($species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $tax_name);
     while(my $row = $sth->fetchrow_hashref){
-		$species      = "$row->{species}";
-		$genus        = "$row->{genus}";
-		$family       = "$row->{family}";
-		$order        = "$row->{order}";
-		$class        = "$row->{class}";
-		$phylum       = "$row->{phylum}";
-		$kingdom      = "$row->{kingdom}";
-		$superkingdom = "$row->{superkingdom}";
+		$species      = "$row->{species_level}";
+		$genus        = "$row->{genus_level}";
+		$family       = "$row->{family_level}";
+		$order        = "$row->{order_level}";
+		$class        = "$row->{class_level}";
+		$phylum       = "$row->{phylum_level}";
+		$kingdom      = "$row->{kingdom_level}";
+		$superkingdom = "$row->{superkingdom_level}";
 		$tax_name     = "$row->{tax_name}";
     }
 
