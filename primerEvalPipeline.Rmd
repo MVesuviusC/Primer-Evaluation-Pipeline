@@ -393,7 +393,7 @@ colsForTarget <- list("On-target" = "#1b9e77",
 
 
 for(target in unique(primerMismatchLocs$OnTarget)) {
-  png(paste(params$outDir, 
+      png(paste(params$outDir, 
             "/figures/primer", 
             "MismatchLoc", 
             target, 
@@ -405,8 +405,9 @@ for(target in unique(primerMismatchLocs$OnTarget)) {
   
   print(primerMismatchLocs %>%
     filter(OnTarget == target) %>%
-    ggplot(., aes(x = mismatchLoc, y = count/totalCount)) + 
-      geom_bar(stat = "identity", fill = colsForTarget[[target]]) + 
+    filter(mismatchBase %in% c("A", "T", "G", "C")) %>%
+    ggplot(., aes(x = mismatchLoc, y = count/totalCount, fill = mismatchBase)) + 
+      geom_bar(stat = "identity") + 
       facet_wrap(~ direction, ncol = 1) +
       labs(title = paste("Proportion of amplifiable targets with primer mismatches at each location\n", 
                          target,
