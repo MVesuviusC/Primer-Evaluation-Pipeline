@@ -537,7 +537,7 @@ sub mismatchCounter {
 	    my $qBase = substr($primerRealSeq, $i, 1);
 	    my $sBase = substr($hitRealSeq, $i, 1);
 	    if($sBase !~ /[$degenerateRegexHash{$qBase}]/) {
-		$mismatchLocs .= "," . ($i + 1);
+		$mismatchLocs .= "," . ($i + 1) . "_" . $sBase;
 		if($i <= $primerTipLen) {
 		    $mismatch3Prime++;
 		}

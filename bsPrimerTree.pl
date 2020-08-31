@@ -145,19 +145,19 @@ while (my $input = <$inputFH>){
     $ampLenHash{$sTaxids}{$sAmpLen}++;
     
     # Store mismatch info to parse out later once we have the taxa info
-	# Primer 1 mismatches
-	my ($primer1Dir, $primer1MismatchLocNums) = split ":", $primer1MismatchLocs;
+    # Primer 1 mismatches
+    my ($primer1Dir, $primer1MismatchLocNums) = split ":", $primer1MismatchLocs;
     my @primer1MismatchLocArray = split ",", $primer1MismatchLocNums;
-	my $primer1MismatchCount = scalar(@primer1MismatchLocArray);
+    my $primer1MismatchCount = scalar(@primer1MismatchLocArray);
 
     $mismatchHash{$sTaxids}{$primer1Dir . "\t" . $primer1MismatchCount . "\t" . $primer1Mismatch3PrimeTip}++;
     $mismatchLocsHash{$sTaxids}{$primer1Dir . "\t" . join(",", @primer1MismatchLocArray)}++;
 
-	# Primer 2 mismatches
-	my ($primer2Dir, $primer2MismatchLocNums) = split ":", $primer2MismatchLocs;
+    # Primer 2 mismatches
+    my ($primer2Dir, $primer2MismatchLocNums) = split ":", $primer2MismatchLocs;
     my @primer2MismatchLocArray = split ",", $primer2MismatchLocNums;
-	my $primer2MismatchCount = scalar(@primer2MismatchLocArray);
-
+    my $primer2MismatchCount = scalar(@primer2MismatchLocArray);
+    
     $mismatchHash{$sTaxids}{$primer2Dir . "\t" . $primer2MismatchCount . "\t" . $primer2Mismatch3PrimeTip}++;
     $mismatchLocsHash{$sTaxids}{$primer2Dir . "\t" . join(",", @primer2MismatchLocArray)}++;
 
@@ -321,7 +321,7 @@ open my $mismatchLocsFile, ">", $outDir . "primerMismatchLocs.txt";
 print $mismatchLocsFile "# 1 is the 3 prime end of the primer\n";
 print $mismatchLocsFile join("\t", "taxid", "superkingdom", "kingdom", "phylum", 
 			 "class", "order", "family", "genus", "species", "direction", 
-			 "mismatchLoc", "count", "totalCount"), "\n";
+			 "mismatchLoc", "mismatchBase", "count", "totalCount"), "\n";
 
 for my $taxid (keys %taxaHash) {
 	# Mismatch counts				
@@ -336,24 +336,26 @@ for my $taxid (keys %taxaHash) {
 	for my $mismatchLocs (keys %{ $mismatchLocsHash{$taxid} } ) {
 	    my ($direction, $mismatchNums) = split("\t", $mismatchLocs); 
 
-		my @mismatchLocArray = split ",", $mismatchNums;
-		for my $loc (@mismatchLocArray) {
-				print $mismatchLocsFile $taxid . "\t" .
-				$taxaHash{$taxid} . "\t" .
-				$direction . "\t" .
-				$loc . "\t" .
-				$mismatchLocsHash{$taxid}{$mismatchLocs} . "\t" .
-				$blastHitCount, "\n"; 
-		}
-	     
-		# For primers with no mismatches
-		if(scalar(@mismatchLocArray == 0)) {
-			print $mismatchLocsFile $taxid . "\t" .
-			$taxaHash{$taxid} . "\t" .
+	    my @mismatchLocArray = split ",", $mismatchNums;
+	    for my $loc (@mismatchLocArray) {
+		my ($locNum, $locNt) = split "_", $loc;
+		print $mismatchLocsFile $taxid . "\t" .
+		    $taxaHash{$taxid} . "\t" .
 		    $direction . "\t" .
-		    "NA\t" .
+		    $locNum . "\t" .
+		    $locNt . "\t" .
 		    $mismatchLocsHash{$taxid}{$mismatchLocs} . "\t" .
-			$blastHitCount, "\n"; 
+		    $blastHitCount, "\n"; 
+	    }
+	     
+	    # For primers with no mismatches
+	    if(scalar(@mismatchLocArray == 0)) {
+		print $mismatchLocsFile $taxid . "\t" .
+		    $taxaHash{$taxid} . "\t" .
+		    $direction . "\t" .
+		    "NA\tNA\t" .
+		    $mismatchLocsHash{$taxid}{$mismatchLocs} . "\t" .
+		    $blastHitCount, "\n"; 
 	    }
 	}
 }
