@@ -146,7 +146,11 @@ if($forward) { # primers provided directly
 	chomp $input;
 	
 	#### Need to build in check to be sure format is right and force uppercase
+	#### Also check that just one primer set is passed
 	my ($primerNameF, $primerF, $primerNameR, $primerR) = split "\t", $input;
+
+	$forward = $primerF;
+	$reverse = $primerR;
 	
 	$primerName = $primerNameF . "_" . $primerNameR;
 	
@@ -453,11 +457,9 @@ sub mismatchCounter {
     my $primerShouldStart;
     my $primerShouldEnd;
     my $primerArrayIndex = 0;
-    my $primerRealSeq = $qseq;
     my $primerDir = "for:";
-
+    my $primerRealSeq;
     my $hitRealSeq = $sseq;
-
     my $mismatchLocs = "";
     my $mismatch3Prime = 0;
 
@@ -466,26 +468,34 @@ sub mismatchCounter {
     if($qstart < 20) { # query is the forward primer
         $primerShouldStart = 1;
         $primerShouldEnd = length(@{ $primerHash{$qseqid} }[0]);
+	$primerRealSeq = $forward;
+	if($sstrand eq "minus") {
+	    $primerRealSeq = revComp($primerRealSeq);
+	}
     } else { # query is the reverse primer
         $primerShouldStart = length(@{ $primerHash{$qseqid} }[0]) + $nCount + 1;
         $primerShouldEnd = $primerShouldStart + length(@{ $primerHash{$qseqid} }[1]) - 1;
 	$primerArrayIndex = 1;
 	$primerDir = "rev:";
+	$primerRealSeq = $reverse;
+
+	if($sstrand eq "plus") {
+	    $primerRealSeq = revComp($primerRealSeq);
+	}
+	
     }
 
-    # I might consider putting in an option to kick out any primer pair where either has a mismach at the terminal 3' end of a primer since these are unlikely to amplify
-
-    # Check left end of primer and add sequences as needed
+    # Check left end and add sequences as needed
     print STDERR $blastData, "\n", $primerHash{$qseqid}[$primerArrayIndex], " real primer\n", $primerRealSeq, "\t", $hitRealSeq, "primerBeforeCheckingStart\n" if($debug);
     if($qstart != $primerShouldStart) {
 	if($qstart == $primerShouldStart + 1){
-	    $primerRealSeq = "N" . $primerRealSeq;
+#	    $primerRealSeq = "N" . $primerRealSeq;
 	    $hitRealSeq = "Z" . $hitRealSeq;
 	} else {
 	    my $seqBaseNumberToGet = $sstart - ($qstart - $primerShouldStart); #base position is 1-based
 	    if($seqBaseNumberToGet > 0) {
-		my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], 0, ($qstart - $primerShouldStart)); #substr is 0-based
-		$primerRealSeq = $seqToAdd . $primerRealSeq;
+#		my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], 0, ($qstart - $primerShouldStart)); #substr is 0-based
+#		$primerRealSeq = $seqToAdd . $primerRealSeq;
 		
 		my $seqRange = $seqBaseNumberToGet . "-" . ($sstart - 1);
 		
@@ -496,6 +506,23 @@ sub mismatchCounter {
 		chomp $seqBases;
 		$seqBases = uc($seqBases);
 		$hitRealSeq = $seqBases . $hitRealSeq;
+	    } elsif(($sstart - 1) > 0) {
+		# get what I can and put on N's for the rest
+		my $seqRange = "1-" . ($sstart - 1);
+
+		my $getSeqCmd = "blastdbcmd -target_only -outfmt \"%s\" -db " . $blastDb . " -entry " . $sgi . " -range " . $seqRange;
+		print STDERR $getSeqCmd, "For partial start\n" if($debug);
+		my $seqBases = `$getSeqCmd`;
+		$numberOfBlastcmdCalls++;
+		chomp $seqBases;
+		$seqBases = uc($seqBases);
+		$hitRealSeq = $seqBases . $hitRealSeq;
+
+		# Add N's for the rest
+		$hitRealSeq =  "N" x (abs($seqBaseNumberToGet) + 1) . $hitRealSeq;
+	    } else {
+		# the missing sequence from the subject is just missing from the sequence
+		$hitRealSeq =  "N" x (abs($seqBaseNumberToGet) + 1) . $hitRealSeq;
 	    }
 	}
     }
@@ -503,7 +530,7 @@ sub mismatchCounter {
     print STDERR $primerRealSeq, "\t", $hitRealSeq, "primer after start fix\n" if($debug);
     if($qend != $primerShouldEnd) {
 	if($qend == $primerShouldEnd - 1) {
-	    $primerRealSeq = $primerRealSeq . "N";
+#	    $primerRealSeq = $primerRealSeq . "N";
             $hitRealSeq = $hitRealSeq . "Z";
 	} else {
 	    my $seqEndNumberToGet = $send + ($primerShouldEnd - $qend); #base position is 1-based
@@ -514,30 +541,50 @@ sub mismatchCounter {
 	    $numberOfBlastcmdCalls++;
 	    print STDERR $getSeqCmd, "\tcommand to get end\n" if($debug);
 	    chomp $seqBases;
-	    if(length($seqBases) == $seqEndNumberToGet - $send) { # if $seqRange is outside of available sequence, the full sequence is returned
-		$seqBases = uc($seqBases);
-		$hitRealSeq = $hitRealSeq . $seqBases;
-		
-		my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], -1 * ($primerShouldEnd - $qend)); #substr is 0-based
-		$primerRealSeq = $primerRealSeq . $seqToAdd;	    
+	    #if(length($seqBases) == $seqEndNumberToGet - $send) { # if $seqRange is outside of available sequence, the full sequence is returned
+	    $seqBases = uc($seqBases);
+	    $hitRealSeq = $hitRealSeq . $seqBases;
+	    #}
+
+	    # Check if the full sequence was not available, and fill in with N's otherwise
+	    if(length($hitRealSeq) != length($primerRealSeq)) {
+		$hitRealSeq = "N" x (length($primerRealSeq) - length($hitRealSeq)) . $hitRealSeq;
 	    }
+	     
+#		my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], -1 * ($primerShouldEnd - $qend)); #substr is 0-based
+#		$primerRealSeq = $primerRealSeq . $seqToAdd;	    
+	    #}
 	}
     }
 
-    print STDERR $primerRealSeq, "\t", $hitRealSeq, "after end fix\n" if($debug);
+    print STDERR $primerRealSeq, "\t", $hitRealSeq, "\t", $primerDir, " after end fix\n" if($debug);
 
     # Count the mismatches in the aligned portion of the primer
-    if($primerRealSeq ne $hitRealSeq) { # no need to count mismatches if identical
+
+    # no need to count mismatches if identical
+    # This doesn't work if ambiguous bases are present, but that's fine
+    if($primerRealSeq ne $hitRealSeq) {
+
+	# if the hit is on the negative strand, need to revcomp the sequence
+	if($sstrand ne "plus") {
+	    my $primerRealSeq = revComp($primerRealSeq);
+	    my $hitRealSeq = revComp($hitRealSeq);
+	}
+	
 	# rev complement forward primers so they're facing 3'---5' so $i = 0 is the 3' end
 	if($primerDir eq "for:") {
 	    $primerRealSeq = revComp($primerRealSeq);
 	    $hitRealSeq = revComp($hitRealSeq);
 	}
+
+	# Do the comparison for each base
 	for(my $i = 0; $i < length($primerRealSeq); $i++) {
 	    my $qBase = substr($primerRealSeq, $i, 1);
 	    my $sBase = substr($hitRealSeq, $i, 1);
 	    if($sBase !~ /[$degenerateRegexHash{$qBase}]/) {
-		$mismatchLocs .= "," . ($i + 1) . "_" . $sBase;
+		# Need to complement the mismatch since we revComp'd the sequence above
+		# if it was for: and if it is rev: then we still need to complement it
+		$mismatchLocs .= "," . ($i + 1) . "_" . revComp($sBase);
 		if($i <= $primerTipLen) {
 		    $mismatch3Prime++;
 		}
