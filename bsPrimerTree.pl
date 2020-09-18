@@ -77,6 +77,7 @@ my %alignedSeqHash;
 my %distHash;
 my %ampLenHash;
 my %taxaHash;
+my %giTaxaHash;
 my $blastHitCount = 0;
 
 
@@ -267,18 +268,25 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 		
 		# store taxa info for ampLen printing
 		$taxaHash{$taxid} = join("\t", $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $species);
+		
+		# store which taxid matches each gi for use when printing taxonomy table
+		$giTaxaHash{$taxid . "\t" .
+			    $gi . "\t" .
+			    $taxaHash{$taxid}} = 1;
+		
+		# header with taxa info and unique number to make alignment program happy
+		my $newHeader = ">"   . 
+			$gi . ":" .
+			"s-"  . $species . ":" .
+			"sk-" . $superkingdom . ":" .
+			"k-"  . $kingdom . ":" .
+			"p-"  . $phylum . ":" .
+			"c-"  . $class . ":" .
+			"o-"  . $order . ":" .
+			"f-"  . $family . ":" .
+			"g-"  . $genus . ":" . 
+			"_" . $speciesSeqCountHash{$species};
 
-		my $newHeader = ">"   . # header with taxa info and unique number to make alignment program happy
-				"s-"  . $species . ":" .
-				"sk-" . $superkingdom . ":" .
-				"k-"  . $kingdom . ":" .
-				"p-"  . $phylum . ":" .
-				"c-"  . $class . ":" .
-				"o-"  . $order . ":" .
-				"f-"  . $family . ":" .
-				"g-"  . $genus . ":" . 
-				"_" . $speciesSeqCountHash{$species};
-				
 		# put it into printable array if I haven't seen too many of that species
 		if($speciesSeqCountHash{$species} <= $maxSeqPerSp) {
 			push @printable, $newHeader . "\n" . $seq;
@@ -310,6 +318,13 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 		"were downloaded at about the same time\n";
 	}
 }
+
+# Print out table with gi and taxa info for primerTree tree plotting
+open my $giTaxaFile, ">", $outDir . "giTaxonomyFile.txt";
+for my $giTaxaEntry (keys %giTaxaHash) {
+	print $giTaxaFile $giTaxaEntry, "\n";
+}
+close $giTaxaFile;
 
 # Print out information on how many mismatches there are
 open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
@@ -396,17 +411,16 @@ if($maxAlignedSeqs <= scalar(@printable)) {
     print $fastaWithTaxaFile join("\n", @printable), "\n";
 }
 
-
 close $fastaWithTaxaFile;
 
-        ##### Need to keep in mind that the output fasta may  have multiple ">"s in the header
+        ##### Need to keep in mind that the output fasta may  have multiple ">"s in the header - I don't think this is still true
 $/ = "\n";
 
 
 
 ########################
 ### Print out a log of the number of taxa within each taxonomic level
-open my $taxaSummaryFile, ">", $outDir . "taxaSummary.txt";
+open my $taxaSummaryFile, ">", $outDir . "taxaCountSummary.txt";
 print $taxaSummaryFile "superkingdom\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\tCount\n";
 
 #for my $level ("subkingdom", "kingdom", "phylum", "class", "order", "family", "genus", "species") {
@@ -416,7 +430,7 @@ for my $taxName (keys %taxCountHash) {
     print $taxaSummaryFile $taxName, "\t", $taxCountHash{$taxName}, "\n";
     
 }
-#}
+
 
 close $taxaSummaryFile;
 
@@ -455,15 +469,14 @@ while(my $fasta = <$alignedFastaFH>) {
   $header =~ s/>//;
 
   # remove these parts of the header to clean up the output
-  $header =~ s/^s-//;
+  #$header =~ s/^s-//;
   $header =~ s/:[kpcofgs]k*-/:/g;
 
   my $seq = join("", @sequences);
   $seq = lc($seq);
 
-  my ($sp, $sk, $k, $p, $c, $o, $f, $g, undef) = split ":", $header;
+  my ($gi, $sp, $sk, $k, $p, $c, $o, $f, $g, undef) = split ":", $header;
 
-  #print STDERR "Need to fix nCompared output in distanceSummary.txt\n\n";
   for my $fastaEntry (keys %alignedSeqHash) {
       # Only compare when either family, genus or species is the same between sequences
       if($alignedSeqHash{$fastaEntry}{family} eq $f || 
@@ -523,7 +536,6 @@ while(my $fasta = <$alignedFastaFH>) {
 	  }
       }
   }
-  #print $sp, "\n";
   # store the new sequence for remaining comparisons
   $alignedSeqHash{$header}{seq} = $seq;
   $alignedSeqHash{$header}{family} = $f;
@@ -537,7 +549,7 @@ for my $distLevel (keys %distHash) {
     print $distOutputFH $distLevel, "\t", $distHash{$distLevel}{sum} / $distHash{$distLevel}{count}, "\t", $distHash{$distLevel}{count}, "\n";
 }
 
-    close $distOutputFH;
+close $distOutputFH;
 
 
 
@@ -557,110 +569,6 @@ if(!$noPlots) {
     }
     
     system($treeCmd);
-    
-    
-    #######################
-    ### Make Dendroscope instructions
-    if($verbose) {
-	print STDERR "Making Dendroscope command files and running Dendroscope\n";
-	print STDERR "Dendroscope may open and do random stuff. Do not close it or interact with the window or the fabric of time will come unraveled\n";
-	my @time = localtime(time);
-	print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
-    }
-    
-    for my $taxaLevel (keys %taxNamesHash) {
-	my %taxaLevelNameHash = (
-	    "species" 	=> "s",
-	    "superkingdom"	=> "sk",
-	    "kingdom" 	=> "k",
-	    "phylum"	=> "p",
-	    "class"		=> "c",
-	    "order"		=> "o",
-	    "family"	=> "f",
-	    "genus"		=> "g");
-	
-	my $dendroHeader = join("\n", 
-				"open file=" . $outDir . "tree.nwk" . ";",
-				"set window width=3000 height=3000;", # Have to set this to a high value to avoid collapsed branches :-(
-				"go tree=1;", 
-				"show nodelabels=false;",
-				"show edgelabels=false;",
-				"set drawer=RadialPhylogram;",
-				"set scale=1000;",
-				"deselect all;",
-				#"replace searchtext=^R replacetext=_ all=true regex=true;",
-				"replace searchtext=_\\d+\$ replacetext=_ all=true regex=true;",
-				"select nodes=leaves;",
-				"set nodeshape=oval;" ,
-				"set nodesize=" . $plotPtSz . ";" ,
-				"set fontsize=" . $plotFtSz . ";") . "\n";
-	
-	my $dendroTail = join("\n", 
-			      "set radiallabels=true;",
-			      "show scalebar=true;",
-			      "deselect all;",
-			      "exportimage file=\'" . $outDir . "treePlot_" . $taxaLevel . ".svg\' textasshapes=false format=SVG replace=true;",
-			      "quit;") . "\n";
-	
-	open my $dendroInstFile, ">", $outDir . "dendroInstructionFile_" . $taxaLevel . ".txt";
-	
-	my @taxaList = keys %{ $taxNamesHash{$taxaLevel} }; 
-	
-	my $numberOfNames = scalar(@taxaList);
-	my $colorSteps = int($numberOfNames ** (1/3)) + 1;
-	my $colMaxVal = 255;
-	my $stepSize = int($colMaxVal / $colorSteps);
-	my @colors;
-	
-	#modify dendroHeader to cut everything except the target taxa level. - Move this to $dendroHeader declaration?
-	$dendroHeader .= 
-	    "replace searchtext=[Rs].*" . $taxaLevelNameHash{$taxaLevel} . "- replacetext=---------- all=true regex=true;\n" .
-	    "replace searchtext=:.* replacetext=------------ all=true regex=true;\n";
-	
-	# loop through to make all combos
-	for(my $i = 255; $i > 0; $i -= $stepSize){
-	    for(my $j= 255; $j > 0; $j -= $stepSize    ) {
-		for(my $k= 255; $k > 0; $k -= $stepSize     ){
-		    if($i != 255 || $j != 255 || $k != 255) { # don't want white
-			push @colors, $i . " " . $j . " " . $k;
-		    }
-		}
-	    }
-	}
-	
-	print $dendroInstFile $dendroHeader;
-	
-	for my $taxName (@taxaList) {
-	    if($taxNamesHash{$taxaLevel}{$taxName} > $minTaxaToPlot) {
-		# should I keep only 10% or so of the labels?
-		my $colToUse = shift @colors;
-		
-		print $dendroInstFile "find searchtext=\'" . $taxName, "\';\n";
-		print $dendroInstFile "show nodelabels=true;";
-		print $dendroInstFile "set color=" . $colToUse . ";\n";
-		print $dendroInstFile "set fillcolor=" . $colToUse . ";\n";
-		print $dendroInstFile "set labelcolor=" . $colToUse . ";\n";
-		print $dendroInstFile "deselect all;\n";
-	    } 
-	}
-	
-	print $dendroInstFile $dendroTail;
-	close $dendroInstFile;
-	my $dendroscopeCmd = "xvfb-run --auto-servernum --server-num=1 Dendroscope -g -c " . $outDir . "dendroInstructionFile_" . $taxaLevel . ".txt";
-	if($verbose) {
-	    print STDERR "starting Dendroscope for $taxaLevel\n";
-	}
-	my $response = `$dendroscopeCmd`; 
-	system($dendroscopeCmd);
-	if($verbose) {
-	    print STDERR "Done with Dendroscope\n";
-	}
-	# Uncomment when a working version of ImageMagick is available. Or don't. Whatever.
-	my $imgConvertCmd = "convert -density 300 " . $outDir . "treePlot_" . $taxaLevel . ".svg " . $outDir . "treePlot_" . $taxaLevel . ".jpg";
-	system($imgConvertCmd);
-}
-
-
 }
 
 if($verbose) {
