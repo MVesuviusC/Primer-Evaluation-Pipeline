@@ -1,0 +1,68 @@
+
+
+blastn \
+  -db /export/databases/blast/nt \
+  -query tempFile_29179.txt \
+  -task "blastn" \
+  -evalue 30000 \
+  -word_size 7 \
+  -max_hsps 100 \
+  -max_target_seqs 50000 \
+  -num_threads 30 \
+  -reward 1 \
+  -penalty -1 \
+  -gapopen 2 \
+  -gapextend 1 \
+  -outfmt "7 qseqid sgi evalue length qlen sstart send slen score bitscore sscinames scomnames qseq sseq sstrand" \
+  -ungapped \
+  -sum_stats true \
+  > testOutUngappedBlastn2.txt
+  
+  
+  
+perl bsPrimerBlast.pl --primerInput primerInFile2.txt --blastDb /export/databases/blast/nt --proc 30 > temp
+
+
+
+time perl bsPrimerBlast.pl --primerInput primerInFileFlaviall.txt --blastDb /export/databases/blast/nt --proc 30 -v --primerTipLen 3 --primerTipMismatch 0 > tempxFlaviall
+
+perl bsPrimerTree.pl --inFile tempxPiped.txt --blastDb /export/databases/blast/nt --outDir testingBsprimerTree
+# writes out seqs.fasta and seqsToGet.txt
+
+
+
+
+~/bin/ninja_1.2.2/ninja --verbose 3 testingBsprimerTree/seqsAligned.fasta > testingBsprimerTree/seqsAlignedTree.newick
+
+
+# need to test bsPrimerBlast and Tree on:
+  # Mammal16S primers
+time perl bsPrimerBlast.pl --primerInput testInputs/primerInFile16SMam.txt --blastDb /export/databases/blast/nt --proc 40 -v > output/bspb/mam16S.txt
+
+time perl bsPrimerBlast.pl --primerInput testInputs/primerInFile16SMam.txt --blastDb ~/SerreDLab-3/databases/blast/nt --proc 8 -v | perl bsPrimerTree.pl --inFile tempxFlaviall --blastDb ~/SerreDLab-3/databases/blast/nt --outDir testingBsprimerTree --threads 8 -v
+
+
+~/bin/timeout -m 9999999999 \
+  time \
+    perl bsPrimerBlast.pl \
+      --primerInput testInputs/primerInFile16SMam.txt \
+      --blastDb ~/SerreDLab-3/databases/blast/nt \
+      --proc 8 -v \
+      | \
+    perl bsPrimerTree.pl \
+      --inFile - \
+      --blastDb ~/SerreDLab-3/databases/blast/nt \
+      --outDir testingBsprimerTree \
+      --threads 40 \
+      -v \
+      --maxSeqsPerSpecies 3
+
+  
+  
+
+  # Eukaryote primers
+  
+  
+  
+  
+  
