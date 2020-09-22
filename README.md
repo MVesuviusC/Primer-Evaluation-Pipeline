@@ -1,6 +1,31 @@
-# bsPrimerBlast
+# Primer evaluation
+
+## Overview
+
+
+
+## Installation
+
+### Dependencies
+
+Note that this pipeline likely requires around 40G of RAM minimum to run
+
+## Usage
+
+
+
+## Output
+
+
+
+## Docker container
+
+
+## Other scripts
+
+### bsPrimerBlast
 	and
-# bsPrimerTree
+### bsPrimerTree
 
 This code is very much a work in progress and will likely change a good bit over time. Use with this in mind. If you try it out, feel free to send feedback to matthewvc1@gmail.com
 
@@ -17,3 +42,4 @@ Dependencies:
    - blast nt database
  - Mafft
  - Imagemagick - optional - to make jpg from svg
+

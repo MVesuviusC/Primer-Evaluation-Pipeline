@@ -1,0 +1,826 @@
+---
+title: "primerEvalPipeline"
+author: "Matt Cannon"
+output: knitrBootstrap::bootstrap_document
+params:
+  outDir: evalOut
+  primerFile: infile.txt
+  blastLoc: blastn
+  blastDb: nt
+  taxonomyDb: taxonomyDb
+  threads: 1
+  cleanup: FALSE
+---
+
+
+Using parameters:
+https://bookdown.org/yihui/rmarkdown/params-knit.html
+
+```{r examples, eval = FALSE, echo = FALSE}
+# example command to run on hush
+rmarkdown::render("primerEvalPipeline.Rmd", 
+  output_dir = "evalOut/",
+  params = list(
+    primerFile = "examplePrimerInputFile.txt",
+    blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
+    blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
+    taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy_1_21_20.db",
+    threads = 30
+  )
+)
+
+rmarkdown::render("primerEvalPipeline.Rmd", 
+  output_dir = "mam16SOut/",
+  params = list(
+    outDir = "mam16SOut",
+    primerFile = "examplePrimerInputMammal16S.txt",
+    blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
+    blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
+    taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db",
+    threads = 30
+  )
+)
+
+rmarkdown::render("primerEvalPipeline.Rmd", 
+  output_dir = "Phlebovirus1Out/",
+  params = list(
+    outDir = "Phlebovirus1Out",
+    primerFile = "examplePrimerInputPhlebovirus1.txt",
+    blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn",
+    blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt",
+    taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db",
+    threads = 30
+  )
+)
+
+R -e 'rmarkdown::render("primerEvalPipeline.Rmd", output_dir = "evalOut/", params = list(primerFile = "examplePrimerInputFile.txt", blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn", blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt", taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db", threads = 30))'
+
+qsubStub <- "echo \"ls\" | qsub -cwd -P dserre-lab -o parasitePrimerEval/qsubOut/alignQsubStdOut.txt -e parasitePrimerEval/qsubOut/alignQsubStdErr.txt -l mem_free=0.1G -q threaded.q -pe thread 2 -N primerEval -- -lh"
+
+
+
+commandStub <- 'use R-3.5.1; R -e \' rmarkdown::render("primerEvalPipeline.Rmd", output_dir = "evalOut/", params = list(primerFile = "examplePrimerInputFile.txt", blastLoc = "/usr/local/packages/ncbi-blast+-2.7.1/bin/blastn", blastDb = "/local/projects-t3/SerreDLab-3/databases/blast/nt", taxonomyDb = "/local/projects-t3/SerreDLab-3/databases/taxonomy.db", threads = 30))\''
+
+perl scripts/batchQsub.pl --input parasitePrimersInput.txt --outDir parasiteTest
+```
+
+
+# Primer evaluation
+
+Put in paragraph explaining goals and general approach here
+
+
+
+Target taxa needs to be a species, genus, family, order, class, phylum or kingdom 
+  (For now, I need to work on this. The issue is creating the database using makeTaxonomyDb.pl. This script 
+  uses the rankedlineage.dmp file from the NCBI taxdump, which only includes these taxonomic levels. I need
+  to use the other files to parse out all the taxonomic levels, but doing this is going to be
+  a huge pain due to the format they're in.)
+
+
+# To do
+
+  * Need to deal with multiple taxids per blast hit..... separated by ";"
+  * Allow taxonomic levels other than sgfocpk
+  * Move taxaCloud
+  * Make sure taxaTarget entry can handle lowercase
+  * Implement checks that each step succeeded
+  * Output a warning if the reblast step has too many reads (define too many)
+  * add " Vector " and " construct " to bannedwords?
+  * add cleanup option to delete processing files
+  * Delete unneccesary variables at end of each chunk to save on memory usage
+  * Style consistent with tidyverse guide
+  * mismatch plot -> fix coloring of taxa levels above targetLevel
+    * Check that this issue isn't shared with other plots/summaries
+
+### Libraries
+```{r loadLibraries, cache = FALSE, eval = TRUE}
+library(knitr)
+library(rmarkdown)
+library(knitrBootstrap)
+library(gridExtra)
+library(tidyverse)
+library(ggwordcloud)
+theme_set(theme_bw())
+theme_update(plot.title = element_text(hjust = 0.5))
+```
+
+## Setup
+```{r setup, cache = FALSE, include = FALSE}
+opts_chunk$set(fig.height = 10, 
+               fig.width = 20, 
+               cache = TRUE, 
+               cache.path = paste(params$outDir, "/cache/", sep = ""), 
+               cache.extra = list(params$primerFile))
+```
+
+Parameters used for knitting
+```{r printParams, cache = FALSE, eval = TRUE}
+print(params)
+```
+
+### Check for requirements
+Programs
+  * blast
+  * blastdbcmd
+  * mafft
+  * perl 
+  * bsPrimerBlast.pl
+  * bsPrimerTree.pl
+  * getTaxa.pl
+  * Dendroscope - don't kill
+  * imageMagick - don't kill
+  
+Write permissions
+```{r checkReqs, cache = FALSE, eval = TRUE, message = FALSE}
+missingDep <- FALSE
+
+for(commandToCheck in c("blastn", "blastdbcmd", "mafft", "perl", "bsPrimerBlast.pl",
+		   "bsPrimerTree.pl", "getTaxa.pl", "Dendroscope", "convert")) {
+	if(Sys.which(commandToCheck) == "") {
+		warning(commandToCheck, " command not found. Please ensure this program is installed and in your $PATH")
+		message(commandToCheck, " command not found. Please ensure this program is installed and in your $PATH")
+		missingDep <- TRUE
+	}
+}
+
+for(perlScript in c("scripts/filterFastaNs.pl", "scripts/uniqueFastaBySpeciesSeq.pl",
+	       "scripts/findTopBlastHitsWithTaxa.pl", "scripts/countNumInRank.pl", "scripts/getPotentialHits.pl")) {
+	if(!file.exists(perlScript)) {
+		warning(perlScript, " not found. Please ensure this perl script is found in ./scripts/ (relative to where this is run)")
+		message(perlScript, " not found. Please ensure this perl script is found in ./scripts/ (relative to where this is run)")
+		missingDep <- TRUE
+	}
+}
+
+if(missingDep) {
+	knit_exit()
+}
+```
+
+
+
+### Export bash variables
+```{r exportBashVariables, cache = FALSE, eval = TRUE}
+Sys.setenv(outDir = params$outDir)
+Sys.setenv(primerFile = params$primerFile)
+Sys.setenv(blastLoc = params$blastLoc)
+Sys.setenv(blastDb = params$blastDb)
+Sys.setenv(taxonomyDb = params$taxonomyDb)
+Sys.setenv(threads = params$threads)
+```
+
+### Create directories
+
+   # need to check if directories exist
+```{bash mkdirs, eval = TRUE}
+mkdir $outDir
+mkdir ${outDir}/didHit
+mkdir ${outDir}/reBlastOut
+mkdir ${outDir}/couldHaveHit
+mkdir ${outDir}/figures
+```
+
+### Read in the input file with primers
+columns are:
+primerNameF primerF primerNameR primerR targetTaxa
+
+```{r getPrimers, cache = FALSE, eval = TRUE}
+primerDf <- read_delim(params$primerFile, "\t", col_names=F)
+colnames(primerDf) <- c("PrimerFName", "PrimerF", "PrimerRName", "PrimerR", "TargetTaxa", "TargetLevel")
+primerDf
+targetTaxa <- as.character(primerDf$TargetTaxa[1]) # first letter should be capitalized - put in check
+targetLevel <- tolower(as.character(primerDf$TargetLevel[1])) # needs to be lowercase to match later
+
+Sys.setenv(targetTaxa = targetTaxa)
+Sys.setenv(targetLevel = targetLevel)
+
+# check if primer file is in the right format and if not knit_exit()
+
+# start creation of summary table
+summaryTable <- as_tibble(primerDf)
+```
+
+
+## Write out file containing "banned" words
+These are words found in species names that indicate that the species named is uncertain
+
+  * sp.
+  * cf.
+  * aff.
+  * affin.
+  * isolate 
+  * uncultured
+  * symbiont
+  * unidentified
+  * unclassified
+  * environmental
+  
+  Maybe add vector and construct?
+  ------ What to do about single word species (genus only)????
+  
+  If editing this, be sure to also edit scripts/findTopBlastHitsWithTaxa.pl
+
+```{r bannedWords, cache = FALSE, eval = TRUE}
+bannedWords <- c("sp\\.", "cf\\.", "aff\\.", "affin\\.", "isolate", "uncultured", "symbiont", "unidentified", "unclassified", "environmental")
+write(bannedWords, file = paste(params$outDir, "/bannedWords.txt", sep = ""), sep = "\t")
+```
+
+## Find amplifiable species and document amplicon length and primer mismatches
+
+### Run bsPrimerBlast and bsPrimerTree
+
+Need to check how bsPrimerBlast is handling indels and sequence retrieval when there is an indel
+
+This outputs:
+
+* ampliconLengths.txt
+* primerMismatches.txt
+* taxaSummary.txt
+* seqsWithTaxa.fasta -- This file has the portion of the sequence matching the primers removed
+* seqsWithTaxaAligned.fasta -- This file has the portion of the sequence matching the primers removed
+* If plots were produced: 
+    + tree.nwk
+    + dendroInstructionFile_*.txt
+    + treePlot_*.svg 
+
+ #################### Need to make bsPrimerTree output full taxonomy of all amplifiable taxa
+
+
+
+```{bash bsPrimerTree, eval = TRUE}
+bsPrimerBlast.pl \
+      --primerInput ${primerFile} \
+      --blastDb ${blastDb} \
+      --blastVer ${blastLoc} \
+      --proc ${threads} \
+      --minAmpLen 50 \
+      --maxAmpLen 1000 \
+      | \
+    bsPrimerTree.pl \
+      --inFile - \
+      --blastDb ${blastDb} \
+      --taxDb ${taxonomyDb} \
+      --outDir ${outDir}/bsPrimerTreeOut \
+      --threads ${threads} \
+      --maxSeqsPerSpecies 4 \
+      --maxAlignedSeqs 5000
+```
+
+### Plot amplicon length distribution 
+This includes all hits from all species, so there may be inflation of certain values if one or more species has tons of hits.
+
+```{r plotAmpLens, dependson = 'bsPrimerTree', eval = TRUE}
+ampLenDf <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/ampliconLengths.txt", sep = ""), header = TRUE)
+
+# Get rid of hits with "banned" words
+ampLenDf <- as.data.frame(ampLenDf[grep(paste(bannedWords, collapse = "|"), ampLenDf$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+ampLenDf <- ampLenDf[grep(" ", ampLenDf$species),]
+
+ampLenDf$onTarget <- grepl(targetTaxa, ampLenDf[[targetLevel]])
+
+png(paste(params$outDir, "/figures/ampliconLengths.png", sep = ""), width = 2500, height = 2500, res = 300)
+  ggplot(ampLenDf, aes(x = as.numeric(length), y = count, fill = onTarget)) + 
+    geom_bar(stat = "identity") +
+    ggtitle("Amplicon Lengths") +
+    xlab("Amplicon Length (bp)") + 
+    ylab("Count") + facet_wrap(~ onTarget, ncol = 1, scales = "free_y") +
+    labs(fill = "On target") +
+    scale_x_continuous(breaks = round(seq(0, max(ampLenDf$length), by = 50), 1))
+dev.off()
+
+summaryTable$MedianOnTargetAmpLen <- median(subset(ampLenDf, onTarget == TRUE)$length)
+```
+
+### List on-target hits
+```{r listOnTargetHits, dependson = 'bsPrimerTree', eval = TRUE}
+bsPrimerTreeHits <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""))
+# The taxa level should always be lowercase, but might be supplied uppercase
+
+# Make sure the provided taxaLevel argument is valid
+if(!targetLevel %in% colnames(bsPrimerTreeHits)) {
+  warning("The target taxonomic level (\"targetLevel\") provided in input options is not one of: ", paste(colnames(potentialHits), collapse = ", "))
+  warning("Please modify target taxa and retry!")
+  knit_exit()
+}
+# Get only on target hits
+bsPrimerTreeHits <- subset(bsPrimerTreeHits, get(targetLevel) == targetTaxa)
+
+# Get rid of hits with "banned" words
+bsPrimerTreeHits <- as.data.frame(bsPrimerTreeHits[grep(paste(bannedWords, collapse = "|"), bsPrimerTreeHits$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+bsPrimerTreeHits <- bsPrimerTreeHits[grep(" ", bsPrimerTreeHits$species),]
+
+write.table(bsPrimerTreeHits, file = paste(params$outDir, "/didHit/speciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
+```
+
+### Plot primer mismatch counts
+Would like to also plot number of mismatches for sub-taxa to show how bias might manifest
+```{r plotPrimerMismatch, dependson = 'bsPrimerTree', eval = TRUE}
+primerMismatches <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatches.txt", sep = ""), stringsAsFactors = FALSE)
+
+# Get rid of hits with "banned" words
+primerMismatches <- as.data.frame(primerMismatches[grep(paste(bannedWords, collapse = "|"), primerMismatches$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+primerMismatches <- primerMismatches[grep(" ", primerMismatches$species),]
+
+primerMismatches$direction <- gsub("for", "Forward", primerMismatches$direction)
+primerMismatches$direction <- gsub("rev", "Reverse", primerMismatches$direction)
+
+primerMismatches$OnTarget <- "Off-target"
+primerMismatches$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <- "On-target"
+
+
+### plots
+
+# for(mmType in c("mismatchTotal", "mismatch5Prime")) {
+# 	for(target in unique(primerMismatches$OnTarget)) {
+#     df <- primerMismatches %>%
+# 		  select(., class, order, family, direction, !! mmType, OnTarget) %>%
+# 		  gather(., "Level", "Name", -direction, -!! mmType, -OnTarget) %>%
+# 		  filter(is.na(Name) == FALSE, OnTarget == !! target) %>%
+# 		  group_by_at(vars(!! mmType, Level, Name, direction)) %>%
+# 		  tally(name = "Count") %>%
+# 		  ungroup() %>%
+# 		  mutate(Level = factor(Level, levels = c(c("class", "order", "family"))))
+# 																				 
+#     png(paste(params$outDir, 
+#               "/figures/primer", 
+#               mmType, 
+#               "Mismatches", 
+#               target, 
+#               ".png", 
+#               sep = ""), 
+#         width = 8000, 
+#         height = 5000, 
+#         res = 300)
+# 
+# 		print(ggplot(df, aes(x = Name, y = get(mmType), fill = Count, label = Count)) +
+# 		        geom_tile(size = 1, color = "white") +
+# 			      facet_wrap(~ direction + Level, ncol = 2, scales = "free_x") +
+#       			geom_text(angle = 90, color = "white", size = 1/log10(nrow(primerMismatches)) + 3) +
+#       			theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8)) +
+#       			ggtitle(paste(gsub("mismatch", "", mmType), 
+#       			              "primer mismatches", 
+#       			              "\nNumber in each box is the number of sequences with that many mismatches")) +
+# 			      xlab("") +
+# 			      ylab(""))
+# 		dev.off()
+# 	}
+# }
+
+summaryTable$MeanOnTarget5PrimeMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatch5Prime)
+summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarget == "On-target")$mismatchTotal)
+
+####### Mismatch locations
+primerMismatchLocs <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatchLocs.txt", sep = ""), stringsAsFactors = FALSE, comment.char = "#", header = TRUE)
+
+# Get rid of hits with "banned" words
+primerMismatchLocs <- as.data.frame(primerMismatchLocs[grep(paste(bannedWords, collapse = "|"), primerMismatchLocs$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+primerMismatchLocs <- primerMismatchLocs[grep(" ", primerMismatchLocs$species),]
+
+primerMismatchLocs$direction <- gsub("for", "Forward", primerMismatchLocs$direction)
+primerMismatchLocs$direction <- gsub("rev", "Reverse", primerMismatchLocs$direction)
+
+primerMismatchLocs$OnTarget <- "Off-target"
+primerMismatchLocs$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <- "On-target"
+
+
+colsForTarget <- list("On-target" = "#1b9e77",
+                      "Off-target" = "#d95f02")
+
+
+for(target in unique(primerMismatchLocs$OnTarget)) {
+      png(paste(params$outDir, 
+            "/figures/primer", 
+            "MismatchLoc", 
+            target, 
+            ".png", 
+            sep = ""), 
+      width = 4000, 
+      height = 2000, 
+      res = 300)
+  
+  print(primerMismatchLocs %>%
+    filter(OnTarget == target) %>%
+    filter(mismatchBase %in% c("A", "T", "G", "C")) %>%
+    ggplot(., aes(x = mismatchLoc, y = count/totalCount, fill = mismatchBase)) + 
+      geom_bar(stat = "identity") + 
+      facet_wrap(~ direction, ncol = 1) +
+      labs(title = paste("Proportion of amplifiable targets with primer mismatches at each location\n", 
+                         target,
+                         " species",
+                         sep = "")) + 
+      ylim(0,1) +
+      xlab("5' end <-----------Primer position-----------> 3' end") +
+      ylab("") + 
+      scale_x_reverse(breaks = 1:max(primerMismatchLocs$mismatchLoc, na.rm = TRUE))
+  )
+  dev.off()
+}
+```
+
+```{r plotDistanceSummary, dependson = 'bsPrimerTree', eval = TRUE}
+distance <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/distanceSummary.txt", sep = ""))
+
+distance$OnTarget <- "Off-target"
+distance$OnTarget[grepl(targetTaxa, distance[[targetLevel]])] <- "On-target"
+
+# Get rid of hits with "banned" words
+distance <- as.data.frame(distance[grep(paste(bannedWords, collapse = "|"), distance$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+# Need to keep -
+distance <- distance[grep("[ ^-]", distance$species, perl = TRUE),]
+
+distanceSummary <- distance %>%
+  group_by(., CompLevel, OnTarget) %>%
+  mutate(., Average = sum(MeanDist * nCompared) / sum(nCompared)) %>%
+  ungroup()
+  
+levelsToUse <- c("family", "genus", "species")
+
+colsForTarget <- c("#d95f02", "#1b9e77")
+
+for(levelInUse in levelsToUse) {
+  png(paste(params$outDir, "/figures/distancePlot_", levelInUse, ".png", sep = ""), 
+      width = 5000, 
+      height = 3000, 
+      res = 300)
+  print(ggplot(subset(distanceSummary, CompLevel == levelInUse), 
+               aes(x = MeanDist, 
+                   fill = OnTarget)) + 
+      geom_histogram(binwidth = 1) + 
+      scale_fill_manual(values = colsForTarget) +
+      ggtitle(paste(str_to_title(levelInUse), "\nDistance between individual sequences")) +
+      xlab("") +
+      facet_wrap(~ OnTarget, ncol = 1) +
+      theme(legend.position="none")
+    )
+  dev.off()
+  
+  summaryTable[[paste("MeanOnTargetDistBetweenSeqsWithinEach", str_to_title(levelInUse), sep = "")]] <- subset(distanceSummary, OnTarget == TRUE & CompLevel == levelInUse)$Average[1]
+  
+}
+```
+
+
+
+### Filter unique seqs
+Keep unique sequences per species and blast those, to reduce duplicate hits within a species prior to other analyses to avoid eg. human causing massive skew of the data. 
+
+#### Select only the on-target sequences and get rid of sequences with "N"s
+
+```{r, echo = F, cache = FALSE}
+read_chunk('scripts/filterFastaNs.pl', labels = 'selectOnTargetHitsCode')
+```
+```{perl selectOnTargetHitsCode, eval = FALSE, cache = FALSE}
+```
+```{bash selectOnTargetHits, dependson = 'bsPrimerTree', eval = TRUE}
+grep -A1 "\-${targetTaxa}:" ${outDir}/bsPrimerTreeOut/seqsWithTaxa.fasta | grep -v "^--" | perl scripts/filterFastaNs.pl --fasta - > ${outDir}/seqsWithTaxaOnTarget.fasta
+```
+
+#### Keep unique sequence/species combinations 
+```{r, echo = F, cache = FALSE}
+read_chunk('scripts/uniqueFastaBySpeciesSeq.pl', labels = 'uniqueSeqsCode')
+```
+```{perl uniqueSeqsCode, eval = FALSE, cache = FALSE}
+```
+```{bash uniqueSeqs, dependson = 'trimPrimerSeqs', eval = TRUE}
+perl scripts/uniqueFastaBySpeciesSeq.pl \
+    --fasta ${outDir}/seqsWithTaxaOnTarget.fasta \
+      > ${outDir}/seqsWithTaxaOnTargetUnique.fasta
+```
+
+
+## Blast amplifiable sequences
+
+This needs to output format 7 (which includes headers) to be compatable with downstream code
+```{bash blast, dependson = 'uniqueSeqs', eval = TRUE}
+# split the file up into 500 fasta entry files to save on RAM in blast step
+split -dl 1000 ${outDir}/seqsWithTaxaOnTargetUnique.fasta ${outDir}/splitSeqs
+
+for file in ${outDir}/splitSeqs*
+do
+  ${blastLoc} \
+      -task blastn \
+      -db ${blastDb} \
+      -query ${file} \
+      -num_threads ${threads} \
+      -outfmt "7 qseqid staxid score length qstart qend qlen sstart send slen sacc" \
+      -max_hsps 1 \
+      -max_target_seqs 10000 \
+        >> ${outDir}/reBlastOut/blastResults.txt
+done
+
+rm ${outDir}/splitSeqs*
+gzip -f ${outDir}/reBlastOut/blastResults.txt
+
+```
+
+### Get taxonomy of blast hits
+
+#### Pull hit GI number out of the BLAST results
+
+############### Need to deal with multiple taxids per blast hit..... separated by ";"
+
+```{bash getTaxids, dependson = 'blast', eval = TRUE}
+zcat ${outDir}/reBlastOut/blastResults.txt.gz | grep -v "#" | cut -f 2,2 | perl -pe 's/gi.//' | perl -pe 's/\|.+//' | sort | uniq > ${outDir}/reBlastOut/taxids.txt 
+```
+
+
+#### Get taxonomy information from NCBI
+
+local taxonomy database is created by makeTaxonomyDb.pl. This script and getTaxaLocal.pl are available at:
+(https://github.com/MVesuviusC/getTaxa/)
+
+```{bash getTaxonomy, dependson = 'getTaxids', eval = TRUE}
+getTaxaLocal.pl --dbName ${taxonomyDb} --taxids ${outDir}/reBlastOut/taxids.txt > ${outDir}/reBlastOut/taxaRaw.txt 
+```
+
+### Use taxonomy and blast output to keep all equal top hits
+output: 
+
+This script kicks out any hit where species name contains "banned words" that indicates that the taxonomy is uncertain
+
+
+```{r, echo = F, cache = FALSE}
+read_chunk('scripts/findTopBlastHitsWithTaxa.pl', labels = 'parseTopBlastHitsCode')
+```
+```{perl parseTopBlastHitsCode, eval = FALSE, cache = FALSE}
+```
+```{bash parseTopBlastHits, dependson = 'getTaxonomy', eval = TRUE}
+perl scripts/findTopBlastHitsWithTaxa.pl \
+    --blastIn ${outDir}/reBlastOut/blastResults.txt.gz \
+    --taxa ${outDir}/reBlastOut/taxaRaw.txt \
+    > ${outDir}/couldHaveHit/blastParsed.txt
+```
+
+### Count hits per rank
+Estimate of the taxonomic specificity of the data generated by the primers
+
+This counts, for each query sequence blasted above, the number of taxonomic groups at four levels ( ) are
+hit. Essentially, this tells you, if you were to generate real data, how many species/genera/families/orders 
+would you expect to match each sequence. 
+
+need to deal with "banned" words - should pull these into scripts from a file to make for easy updating
+
+```{bash countNumInRank, dependson = 'parseTopBlastHits', eval = TRUE}
+perl scripts/countNumInRank.pl --input ${outDir}/couldHaveHit/blastParsed.txt --outDir ${outDir}
+```
+
+
+## Find species with sequences in the nt database that could have been found by bsPrimerBlast
+
+###### Need to deal with the situation where "N"s in the sequence prevent finding the primer
+```{bash parsePotentialHits, dependson = 'parseTopBlastHits', eval = TRUE}
+perl scripts/getPotentialHits.pl \
+    --alignVar 10 \
+    --taxa ${outDir}/reBlastOut/taxaRaw.txt \
+    --blast ${outDir}/reBlastOut/blastResults.txt.gz \
+    --primerFile ${primerFile} \
+      > ${outDir}/couldHaveHit/potentialHits.txt
+```
+
+### Generate list of on-target species with sequences in the nt database
+```{r listHitSpecies, dependson = 'parsePotentialHits', eval = TRUE}
+potentialHits <- read.delim(paste(params$outDir, "/couldHaveHit/potentialHits.txt", sep = ""))
+# The taxa level should always be lowercase, but might be supplied uppercase
+
+# Make sure the provided taxaLevel argument is valid
+if(!targetLevel %in% colnames(potentialHits)) {
+  warning("The target taxonomic level (\"targetLevel\") provided in input options is not one of: ", paste(colnames(potentialHits), collapse = ", "))
+  warning("Please modify target taxa and retry!")
+  knit_exit()
+}
+# Get only on target hits
+potentialHits <- subset(potentialHits, get(targetLevel) == targetTaxa)
+
+# Get rid of hits with "banned" words
+potentialSpecies <- as.data.frame(potentialHits[grep(paste(bannedWords, collapse = "|"), potentialHits$species, perl = T, invert = T),])
+# Get rid of hits with only genus (no space in name)
+potentialHits <- potentialHits[grep(" ", potentialHits$species),]
+
+write.table(potentialSpecies, file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), sep = "\t", quote = F, row.names = F)
+```
+
+
+### Generate list of all known species within the target taxa
+Vasco Elbrecht brought up an important point. For sequences contributed to the database, the primers used to generate the sequence are usually trimmed. This means that any sequence in the database genrated using the primers currently tested will be defined as "unsequenced" because the sequence does not include the primer sequences.
+
+
+```{bash listAllSpecies, dependson = 'bsPrimerTree', eval = TRUE}
+getTaxaLocal.pl --dbName ${taxonomyDb} --taxName ${targetTaxa},${targetLevel} > ${outDir}/couldHaveHit/knownSpecies.txt 
+```
+
+
+
+## Pull it all together to make summary table
+use:
+Percent of species on target
+  evalOut/bsPrimerTreeOut/taxaSummary.txt
+  #output/summaryTable/OnTargetSpeciesCount_SpeciesList.txt
+  #output/summaryTable/OffTargetSpeciesCount_SpeciesList.txt
+
+
+Number of species found and in NCBI
+  /couldHaveHit/potentialSpeciesOnTarget.txt
+  #output/summaryTable/hitsSpeciesCount_SpeciesList.txt
+  #output/summaryTable/potentialHitsSpeciesCount_species_list.txt
+
+Primer taxonomic specificity
+  output/blast/topHitSummary/family/${base}Counts.txt
+  output/blast/topHitSummary/genus/${base}Counts.txt
+  output/blast/topHitSummary/species/${base}Counts.txt
+
+```{r makingSummaryTable, eval = TRUE}
+### Percent of on-target amplifiable hits
+taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""), stringsAsFactors = FALSE)
+# Get rid of any hit with banned words
+taxaSummary <- taxaSummary[grep(paste(bannedWords, collapse = "|"), taxaSummary$species, invert = T),]
+# Get rid of hits with only genus (no space in name)
+taxaSummary <- taxaSummary[grep(" ", taxaSummary$species),]
+
+taxaSummaryOnTarget <- subset(taxaSummary, get(targetLevel) == targetTaxa)
+
+summaryTable$OnTargetSpeciesAmplifiedCount <- sum(taxaSummary[[targetLevel]] == targetTaxa, na.rm = T)
+
+summaryTable$AllSpeciesAmplifiedCount <- nrow(taxaSummary)
+
+summaryTable$PercentAmplifiedOnTarget <- 100 * (summaryTable$OnTargetSpeciesAmplifiedCount / summaryTable$AllSpeciesAmplifiedCount)
+
+
+######  Make word cloud plot of taxa
+############ Should put this somewhere else
+############ Should color by on-target
+forCloud <- taxaSummary %>%
+  mutate(., Count = 1, onTarget = if_else(get(targetLevel) == !! targetTaxa, "On-target", "Off-target", "Off-target")) %>%
+  select(., -species) %>% # this adds too many entries and they should all have Count = 1.... 
+  gather(., "Level", "Taxa", -Count, -onTarget) %>% 
+  group_by(., Taxa, Level, onTarget) %>% 
+  summarize(., Count = sum(Count), log10Count = log10(sum(Count))) %>%
+  ungroup() %>%
+  group_by(., Level) %>% 
+  mutate(., Percent = 100 * round(Count / sum(Count), 4)) %>%
+  ungroup() %>%
+  filter(., Percent > 0.5) %>%
+  mutate(., Level = factor(Level, levels = colnames(taxaSummary[1:8]))) %>%
+  mutate(., Taxa = replace_na(Taxa, "ND"))
+
+png(filename = paste(params$outDir, "/figures/taxaCloud.png", sep = ""), width = 4500, height = 4000, res = 600)
+ggplot(forCloud, aes(label = paste(Taxa, " (", Percent, "%)", sep = ""), 
+                     size = Count, 
+                     color = onTarget)) +
+  geom_text_wordcloud_area(shape = "square", show.legend = TRUE) +
+  scale_size_area(max_size = 3) +
+  facet_wrap(~ Level, scales = "free") +
+  ggtitle("Taxa greater than 0.5%") +
+  guides(size = FALSE)
+dev.off()
+
+
+#### Species that could have been amplified
+potentialHits <- read.delim(file = paste(params$outDir, "/couldHaveHit/potentialSpeciesOnTarget.txt", sep = ""), header = T, stringsAsFactors = FALSE)
+
+potentialSpecies <- as.character(unique(potentialHits$species))
+potentialHits$WasHit <- potentialHits$species %in% potentialSpecies[potentialSpecies %in% taxaSummaryOnTarget$species]
+
+missedSpecies <- potentialHits[potentialHits$species %in% potentialSpecies[!potentialSpecies %in% taxaSummaryOnTarget$species],]
+                        
+write.table(missedSpecies, file = paste(params$outDir, "/couldHaveHit/missedTaxa.txt", sep = ""), quote = F, sep = "\t", row.names = F)
+
+PercentFound <- (length(potentialSpecies) - nrow(missedSpecies)) / length(potentialSpecies) * 100
+summaryTable$PercentKnownSeqsAmplified <- PercentFound 
+
+missedSummary <- potentialHits %>% 
+  select(., -species) %>% 
+  gather(., key = "Level", value = "Taxa", -WasHit) %>% 
+  group_by(., Level, Taxa) %>% 
+  summarize(., PercentHit = sum(WasHit) / length(WasHit), NumHit = sum(WasHit), NumMissed = length(WasHit) - sum(WasHit)) %>% 
+  ungroup() %>%
+  mutate(xlabs = paste(Taxa, "(", NumHit, "/", NumHit + NumMissed, ")", sep = ""))  
+
+missedSummary$Level <- factor(missedSummary$Level, levels = c("species", "genus", "family", "order", "class", "phylum", "kingdom"))
+
+png(filename = paste(params$outDir, "/figures/taxaPercentAmplifiableByTaxa.png", sep = ""), width = 8000, height = 6000, res = 300)
+ggplot(missedSummary, aes(x = reorder(xlabs, -PercentHit), y = PercentHit * 100)) + 
+  geom_bar(stat = "identity") + 
+  facet_wrap(~ Level, scales = "free_x", ncol = 1) +
+  xlab("") + 
+  ylab("Percent amplifiable") +
+  ylim(0, 100) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+dev.off()
+
+
+### Percent of known species that were amplified
+knownSpecies <- read.delim(file = paste(params$outDir, "/couldHaveHit/knownSpecies.txt", sep = ""), header = T, stringsAsFactors = FALSE)
+# Get rid of any entry with banned words
+knownSpecies <- knownSpecies[grep(paste(bannedWords, collapse = "|"), knownSpecies$species, invert = T),]
+# Get rid of hits with only genus (no space in name)
+knownSpecies <- knownSpecies[grep(" ", knownSpecies$species),]
+
+unseqdSpecies <- knownSpecies[!knownSpecies$species %in% potentialSpecies,]
+summaryTable$PercentKnownSpeciesSequenced <- (1 - (nrow(unseqdSpecies) / nrow(knownSpecies))) * 100
+write.table(unseqdSpecies, file = paste(params$outDir, "/couldHaveHit/unsequencedSpecies.txt", sep = ""), quote = F, sep = "\t", row.names = F)
+
+
+### Taxonomic specificity
+pluralWords <- list(Order = "Orders", Family = "Families", Species = "Species", Genus = "Genera")
+
+topHitMeans <- read.delim(file = paste(params$outDir, "/topHitMeans.txt", sep = ""), header = T, stringsAsFactors = FALSE)
+topHitMeans$TaxaLevel <- as.character(lapply(topHitMeans$TaxaLevel, function(x) paste("MeanNum", pluralWords[[x]], "PerTestQuery", sep = "")))
+rownames(topHitMeans) <- topHitMeans$TaxaLevel
+topHitMeans <- as.data.frame(t(topHitMeans))
+topHitMeans <- topHitMeans[-1,]
+rownames(topHitMeans) <- 1
+
+summaryTable <- cbind(summaryTable, topHitMeans)
+
+topHitSummary <- read.delim(file = paste(params$outDir, "/topHitSummary.txt", sep = ""), header = T, stringsAsFactors = FALSE)
+topHitSummary <- topHitSummary %>% 
+  group_by(., TaxaLevel) %>% 
+  summarise(., PercentSingleHit = 100 * (sum(UniqueTaxaHit == 1) / length(UniqueTaxaHit))) %>% 
+  ungroup() %>% 
+  spread(., TaxaLevel, PercentSingleHit)
+
+colnames(topHitSummary) <- paste(colnames(topHitSummary), "PercentSingleHit", sep = "")
+
+summaryTable <- cbind(summaryTable, topHitSummary)
+
+### primer mismatches
+
+
+write.table(t(summaryTable), file = paste(params$outDir, "/overallSummary.txt", sep = ""), quote = F, sep = "\t", row.names = T, col.names = F)
+
+```
+
+## Cleanup
+Cleanup the intermediate files if told to.
+
+Keep uncompressed: 
+OverallSummary.txt
+primerEvalPipeline.html
+figures/*
+
+Keep and gzip:
+bsPrimerTreeOut/seqsWithTaxaAligned.fasta
+couldHaveHit/missedTaxa.txt
+didHit/SpeciesOnTarget.txt
+
+delete:
+bsPrimerTreeOut/ampliconLengths.txt
+bsPrimerTreeOut/distanceSummary.txt
+bsPrimerTreeOut/primerMismatches.txt
+bsPrimerTreeOut/seqsToGet.txt
+bsPrimerTreeOut/seqsWithTaxa.fasta
+bsPrimerTreeOut/taxaSummary.txt
+bsPrimerTreeOut/*.svg
+bsPrimerTreeOut/dendro*.txt
+couldHaveHit/blastParsed.txt
+couldHaveHit/potentialHits.txt
+couldHaveHit/potentialSpeciesOnTarget.txt
+reBlastOut/blastResults.txt.gz
+reBlastOut/taxaRaw.txt
+reBlastOut/taxids.txt
+bannedWords.txt
+seqsWithTaxaOnTarget.fasta
+seqsWithTaxaOnTargetUnique.fasta
+topHitMeans.txt
+topHitSummary.txt
+
+
+```{r cleanupFiles, eval = FALSE}
+if(params$cleanup == TRUE) {
+  
+  rm_file_list <- c("bsPrimerTreeOut/ampliconLengths.txt", 
+                    "bsPrimerTreeOut/distanceSummary.txt", 
+                    "bsPrimerTreeOut/primerMismatches.txt",
+                    "bsPrimerTreeOut/seqsToGet.txt",
+                    "bsPrimerTreeOut/seqsWithTaxa.fasta",
+                    "bsPrimerTreeOut/taxaSummary.txt",
+                    "bsPrimerTreeOut/*.svg",
+                    "bsPrimerTreeOut/dendro*.txt",
+                    "couldHaveHit/blastParsed.txt",
+                    "couldHaveHit/potentialHits.txt",
+                    "couldHaveHit/potentialSpeciesOnTarget.txt",
+                    "reBlastOut/blastResults.txt.gz",
+                    "reBlastOut/taxaRaw.txt",
+                    "reBlastOut/taxids.txt",
+                    "bannedWords.txt",
+                    "seqsWithTaxaOnTarget.fasta",
+                    "seqsWithTaxaOnTargetUnique.fasta",
+                    "topHitMeans.txt",
+                    "topHitSummary.txt")
+  rm_command <- paste("rm", paste(params$outDir, rm_file_list, sep = "/", collapse = " "))
+  system(rm_command)
+  
+  gzip_file_list <- c("bsPrimerTreeOut/seqsWithTaxaAligned.fasta",
+                      "couldHaveHit/missedTaxa.txt",
+                      "didHit/SpeciesOnTarget.txt")
+  gzip_command <- paste("gzip", paste(params$outDir, gzip_file_list, sep = "/", collapse = " "))
+  system(gzip_command)
+}
+```
+

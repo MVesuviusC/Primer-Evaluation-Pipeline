@@ -1,0 +1,1 @@
+blastoF	TGGTCGCAAGGCTGAAACTT	blastoR	TTGCCTCCAGCTTCCCTACA	Blastocystidae	family
