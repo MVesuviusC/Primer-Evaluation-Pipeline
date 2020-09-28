@@ -321,6 +321,10 @@ while(my $blastInput = <$blastDbCmdResponse>) {
 
 # Print out table with gi and taxa info for primerTree tree plotting
 open my $giTaxaFile, ">", $outDir . "giTaxonomyFile.txt";
+
+# header for giTaxaFile
+print $giTaxaFile "taxId\tgi\tsuperkingdom\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\n";
+
 for my $giTaxaEntry (keys %giTaxaHash) {
 	print $giTaxaFile $giTaxaEntry, "\n";
 }
