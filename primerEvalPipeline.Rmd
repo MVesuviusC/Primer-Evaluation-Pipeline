@@ -392,6 +392,10 @@ summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarg
 primerMismatchLocs <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatchLocs.txt", sep = ""), stringsAsFactors = FALSE, comment.char = "#", header = TRUE)
 
 # Get rid of hits with "banned" words
+####
+### This makes the "totalCount" column incorrect since we're discarding some
+### Need to correct this
+####
 primerMismatchLocs <- as.data.frame(primerMismatchLocs[grep(paste(bannedWords, collapse = "|"), primerMismatchLocs$species, perl = T, invert = T),])
 # Get rid of hits with only genus (no space in name)
 primerMismatchLocs <- primerMismatchLocs[grep(" ", primerMismatchLocs$species),]
@@ -423,11 +427,14 @@ for(target in unique(primerMismatchLocs$OnTarget)) {
         height = 2000, 
         res = 300)
     
-    print(primerMismatchLocs %>%
+    mismatchDf <- primerMismatchLocs %>%
       filter(OnTarget == target) %>%
       filter(direction == primer) %>%
-      filter(mismatchBase %in% c("A", "T", "G", "C")) %>%
-      ggplot(., aes(x = mismatchLoc, y = count/totalCount, fill = mismatchBase)) + 
+      filter(mismatchBase %in% c("A", "T", "G", "C")) 
+    
+    # only create plot if there is data to use
+    if(nrow(mismatchDf) > 0) {
+      print(ggplot(mismatchDf, aes(x = mismatchLoc, y = count/totalCount, fill = mismatchBase)) + 
         geom_bar(stat = "identity") + 
         facet_wrap(~ direction, ncol = 1) +
         labs(title = paste("Proportion of amplifiable targets with primer mismatches at each location\n", 
@@ -440,8 +447,9 @@ for(target in unique(primerMismatchLocs$OnTarget)) {
         scale_x_reverse(limits = c(length(get(primer)), 1),
                         breaks = 1:length(get(primer)),
                         labels=get(primer))
-    )
-    dev.off()
+      )
+      dev.off()
+    }
   }
 }
 ```
@@ -484,7 +492,7 @@ for(levelInUse in levelsToUse) {
     )
   dev.off()
   
-  summaryTable[[paste("MeanOnTargetDistBetweenSeqsWithinEach", str_to_title(levelInUse), sep = "")]] <- subset(distanceSummary, OnTarget == TRUE & CompLevel == levelInUse)$Average[1]
+  summaryTable[[paste("MeanOnTargetDistBetweenSeqsWithinEach", str_to_title(levelInUse), sep = "")]] <- subset(distanceSummary, OnTarget == "On-target" & CompLevel == levelInUse)$Average[1]
   
 }
 ```
