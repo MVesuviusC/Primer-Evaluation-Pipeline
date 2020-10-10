@@ -82,7 +82,6 @@ Target taxa needs to be a species, genus, family, order, class, phylum or kingdo
 
   * Need to deal with multiple taxids per blast hit..... separated by ";"
   * Allow taxonomic levels other than sgfocpk
-  * Move taxaCloud
   * Make sure taxaTarget entry can handle lowercase
   * Implement checks that each step succeeded
   * Output a warning if the reblast step has too many reads (define too many)
@@ -90,8 +89,7 @@ Target taxa needs to be a species, genus, family, order, class, phylum or kingdo
   * add cleanup option to delete processing files
   * Delete unneccesary variables at end of each chunk to save on memory usage
   * Style consistent with tidyverse guide
-  * mismatch plot -> fix coloring of taxa levels above targetLevel
-    * Check that this issue isn't shared with other plots/summaries
+  * add option to allow banned words
 
 ### Libraries
 ```{r loadLibraries, cache = FALSE, eval = TRUE}
@@ -101,6 +99,8 @@ library(knitrBootstrap)
 library(gridExtra)
 library(tidyverse)
 library(ggwordcloud)
+library(primerTree)
+library(ape)
 theme_set(theme_bw())
 theme_update(plot.title = element_text(hjust = 0.5))
 ```
@@ -128,15 +128,12 @@ Programs
   * bsPrimerBlast.pl
   * bsPrimerTree.pl
   * getTaxa.pl
-  * Dendroscope - don't kill
-  * imageMagick - don't kill
-  
+
 Write permissions
 ```{r checkReqs, cache = FALSE, eval = TRUE, message = FALSE}
 missingDep <- FALSE
 
-for(commandToCheck in c("blastn", "blastdbcmd", "mafft", "perl", "bsPrimerBlast.pl",
-		   "bsPrimerTree.pl", "getTaxa.pl", "Dendroscope", "convert")) {
+for(commandToCheck in c("blastn", "blastdbcmd", "mafft", "perl", "getTaxa.pl")) {
 	if(Sys.which(commandToCheck) == "") {
 		warning(commandToCheck, " command not found. Please ensure this program is installed and in your $PATH")
 		message(commandToCheck, " command not found. Please ensure this program is installed and in your $PATH")
@@ -220,6 +217,7 @@ These are words found in species names that indicate that the species named is u
   ------ What to do about single word species (genus only)????
   
   If editing this, be sure to also edit scripts/findTopBlastHitsWithTaxa.pl
+    I should have this script pull in bannedWords.txt
 
 ```{r bannedWords, cache = FALSE, eval = TRUE}
 bannedWords <- c("sp\\.", "cf\\.", "aff\\.", "affin\\.", "isolate", "uncultured", "symbiont", "unidentified", "unclassified", "environmental")
@@ -249,7 +247,7 @@ This outputs:
 
 
 ```{bash bsPrimerTree, eval = TRUE}
-bsPrimerBlast.pl \
+scripts/bsPrimerBlast.pl \
       --primerInput ${primerFile} \
       --blastDb ${blastDb} \
       --blastVer ${blastLoc} \
@@ -257,7 +255,7 @@ bsPrimerBlast.pl \
       --minAmpLen 50 \
       --maxAmpLen 1000 \
       | \
-    bsPrimerTree.pl \
+    scripts/bsPrimerTree.pl \
       --inFile - \
       --blastDb ${blastDb} \
       --taxDb ${taxonomyDb} \
@@ -293,9 +291,26 @@ dev.off()
 summaryTable$MedianOnTargetAmpLen <- median(subset(ampLenDf, onTarget == TRUE)$length)
 ```
 
+### Plot tree using primerTree
+```{r plotTrees, dependson= 'bsPrimerTree', eval = TRUE}
+giTaxDf <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/giTaxonomyFile.txt", sep = ""), header = TRUE)
+
+treeData <- read.tree(paste(params$outDir, "/bsPrimerTreeOut/tree.nwk", sep = ""))
+
+# need to trim the taxonomy data off of the tree labels
+# this data is kept because it is used in other parts of the analysis
+treeData$tip.label <- gsub(":.+", "", treeData$tip.label)
+
+png(paste(params$outDir, "/figures/treePlot.png", sep = ""), width = 4000, height = 4000, res = 300)
+  plot_tree_ranks(tree = treeData, taxonomy = giTaxDf)
+dev.off()
+```
+
+
+
 ### List on-target hits
 ```{r listOnTargetHits, dependson = 'bsPrimerTree', eval = TRUE}
-bsPrimerTreeHits <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""))
+bsPrimerTreeHits <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaCountSummary.txt", sep = ""))
 # The taxa level should always be lowercase, but might be supplied uppercase
 
 # Make sure the provided taxaLevel argument is valid
@@ -377,6 +392,10 @@ summaryTable$MeanOnTargetTotalMismatches <- mean(subset(primerMismatches, OnTarg
 primerMismatchLocs <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/primerMismatchLocs.txt", sep = ""), stringsAsFactors = FALSE, comment.char = "#", header = TRUE)
 
 # Get rid of hits with "banned" words
+####
+### This makes the "totalCount" column incorrect since we're discarding some
+### Need to correct this
+####
 primerMismatchLocs <- as.data.frame(primerMismatchLocs[grep(paste(bannedWords, collapse = "|"), primerMismatchLocs$species, perl = T, invert = T),])
 # Get rid of hits with only genus (no space in name)
 primerMismatchLocs <- primerMismatchLocs[grep(" ", primerMismatchLocs$species),]
@@ -388,37 +407,50 @@ primerMismatchLocs$OnTarget <- "Off-target"
 primerMismatchLocs$OnTarget[grepl(targetTaxa, primerMismatches[[targetLevel]])] <- "On-target"
 
 
-colsForTarget <- list("On-target" = "#1b9e77",
-                      "Off-target" = "#d95f02")
+# Make named list of primers to use as labels on figures
+Forward <-rev(strsplit(as.character(primerDf$PrimerF[1]), split = "")[[1]])
+names(Forward) <- 1:length(Forward)
 
+Reverse <-rev(strsplit(as.character(primerDf$PrimerR[1]), split = "")[[1]])
+names(Reverse) <- 1:length(Reverse)
 
 for(target in unique(primerMismatchLocs$OnTarget)) {
-      png(paste(params$outDir, 
-            "/figures/primer", 
-            "MismatchLoc", 
-            target, 
-            ".png", 
-            sep = ""), 
-      width = 4000, 
-      height = 2000, 
-      res = 300)
-  
-  print(primerMismatchLocs %>%
-    filter(OnTarget == target) %>%
-    filter(mismatchBase %in% c("A", "T", "G", "C")) %>%
-    ggplot(., aes(x = mismatchLoc, y = count/totalCount, fill = mismatchBase)) + 
-      geom_bar(stat = "identity") + 
-      facet_wrap(~ direction, ncol = 1) +
-      labs(title = paste("Proportion of amplifiable targets with primer mismatches at each location\n", 
-                         target,
-                         " species",
-                         sep = "")) + 
-      ylim(0,1) +
-      xlab("5' end <-----------Primer position-----------> 3' end") +
-      ylab("") + 
-      scale_x_reverse(breaks = 1:max(primerMismatchLocs$mismatchLoc, na.rm = TRUE))
-  )
-  dev.off()
+  for(primer in c("Forward", "Reverse")) {
+          png(paste(params$outDir, 
+                    "/figures/primerMismatchLoc", 
+                    target,
+                    "_",
+                    primer,
+                    ".png", 
+                    sep = ""), 
+        width = 4000, 
+        height = 2000, 
+        res = 300)
+    
+    mismatchDf <- primerMismatchLocs %>%
+      filter(OnTarget == target) %>%
+      filter(direction == primer) %>%
+      filter(mismatchBase %in% c("A", "T", "G", "C")) 
+    
+    # only create plot if there is data to use
+    if(nrow(mismatchDf) > 0) {
+      print(ggplot(mismatchDf, aes(x = mismatchLoc, y = count/totalCount, fill = mismatchBase)) + 
+        geom_bar(stat = "identity") + 
+        facet_wrap(~ direction, ncol = 1) +
+        labs(title = paste("Proportion of amplifiable targets with primer mismatches at each location\n", 
+                           target,
+                           " species",
+                           sep = "")) + 
+        ylim(0,1) +
+        xlab("5' end <-----------Primer position-----------> 3' end") +
+        ylab("") + 
+        scale_x_reverse(limits = c(length(get(primer)), 1),
+                        breaks = 1:length(get(primer)),
+                        labels=get(primer))
+      )
+      dev.off()
+    }
+  }
 }
 ```
 
@@ -460,7 +492,7 @@ for(levelInUse in levelsToUse) {
     )
   dev.off()
   
-  summaryTable[[paste("MeanOnTargetDistBetweenSeqsWithinEach", str_to_title(levelInUse), sep = "")]] <- subset(distanceSummary, OnTarget == TRUE & CompLevel == levelInUse)$Average[1]
+  summaryTable[[paste("MeanOnTargetDistBetweenSeqsWithinEach", str_to_title(levelInUse), sep = "")]] <- subset(distanceSummary, OnTarget == "On-target" & CompLevel == levelInUse)$Average[1]
   
 }
 ```
@@ -497,6 +529,9 @@ perl scripts/uniqueFastaBySpeciesSeq.pl \
 ## Blast amplifiable sequences
 
 This needs to output format 7 (which includes headers) to be compatable with downstream code
+
+Should I filter out the sequences with uncertain taxonomy using bannedWords?
+
 ```{bash blast, dependson = 'uniqueSeqs', eval = TRUE}
 # split the file up into 500 fasta entry files to save on RAM in blast step
 split -dl 1000 ${outDir}/seqsWithTaxaOnTargetUnique.fasta ${outDir}/splitSeqs
@@ -619,7 +654,7 @@ getTaxaLocal.pl --dbName ${taxonomyDb} --taxName ${targetTaxa},${targetLevel} > 
 ## Pull it all together to make summary table
 use:
 Percent of species on target
-  evalOut/bsPrimerTreeOut/taxaSummary.txt
+  evalOut/bsPrimerTreeOut/taxaCountSummary.txt
   #output/summaryTable/OnTargetSpeciesCount_SpeciesList.txt
   #output/summaryTable/OffTargetSpeciesCount_SpeciesList.txt
 
@@ -636,7 +671,7 @@ Primer taxonomic specificity
 
 ```{r makingSummaryTable, eval = TRUE}
 ### Percent of on-target amplifiable hits
-taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaSummary.txt", sep = ""), stringsAsFactors = FALSE)
+taxaSummary <- read.delim(paste(params$outDir, "/bsPrimerTreeOut/taxaCountSummary.txt", sep = ""), stringsAsFactors = FALSE)
 # Get rid of any hit with banned words
 taxaSummary <- taxaSummary[grep(paste(bannedWords, collapse = "|"), taxaSummary$species, invert = T),]
 # Get rid of hits with only genus (no space in name)

@@ -85,10 +85,10 @@ while (my $input = <$blastFh>) {
 	if($score >= $maxScore) {
 	    if(exists($taxaHash{$sTaxid})) {
 		# Don't print any hit that has uncertain taxonomic assignment
-		if($taxaHash{$sTaxid}{species} !~ /sp\.|cf\.|aff\.|affin\.|isolate|uncultured|symbiont|unidentified|unclassified|environmental|NA/i) {
+		if($taxaHash{$sTaxid}{species} !~ /sp\.|cf\.|aff\.|affin\.|isolate|uncultured|symbiont|unidentified|unclassified|environmental|^NA$/i) {
 		    # Don't print any hits where only the genus is present (no space)
 		    if($taxaHash{$sTaxid}{species} =~ / /) {
-			print join("\t", 
+			print join("\t",
 				   $fullQueryName, 
 				   $sAcc,
 				   $sTaxid,
