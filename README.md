@@ -1,5 +1,11 @@
 # Primer evaluation
 
+## To do
+
+   * Fix primer mismatch total issue with removing banned words
+   * Kick out genus only systematically
+
+
 ## Overview
 
 
