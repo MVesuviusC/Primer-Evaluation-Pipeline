@@ -17,4 +17,6 @@ Imports:
     ape,
     magrittr,
     stringr,
-    gridExtra
+    gridExtra,
+    tidyr,
+    tibble

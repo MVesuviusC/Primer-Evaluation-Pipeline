@@ -8,7 +8,7 @@ use Pod::Usage;
 ##############################
 # By Matt Cannon
 # Date: 9-20-17
-# Last modified: 9-20-17 
+# Last modified: 11-12-20 
 # Title: getPotentialHits.pl
 # Purpose: Parse BLAST hits
 ##############################
@@ -21,18 +21,21 @@ my $verbose;
 my $help;
 my $blastIn;
 my $taxaIn;
-my $primerFile;
+my $primerF;
+my $primerR;
 my $alignVar = 10;
+my $bannedWords = "";
 
 # i = integer, s = string
 GetOptions ("verbose"           => \$verbose,
             "help"              => \$help,
-            "blastIn=s"	        => \$blastIn,
-            "taxaIn=s"		      => \$taxaIn,
-	          "primerFile=s"      => \$primerFile,
-	          "alignVar=i"        => \$alignVar
-      )
- or pod2usage(0) && exit;
+            "blastIn=s"         => \$blastIn,
+            "taxaIn=s"          => \$taxaIn,
+            "primerF=s"         => \$primerF,
+            "primerrs"          => \$primerR,
+            "alignVar=i"        => \$alignVar,
+            "bannedWords=s"     => \$bannedWords
+) or pod2usage(0) && exit;
 
 pod2usage(1) && exit if ($help);
 
@@ -55,9 +58,9 @@ my %resultsHash;
 ##############################
 ### Check that proper input was provided
 
-if(!defined($primerFile) || !defined($blastIn) || !defined($taxaIn)) {
+if(!defined($primerF) || !defined($blastIn) || !defined($taxaIn)) {
     print STDERR "\n\nPrimer sequences and other input must be provided.\n";
-    print STDERR "primerFile: ", $primerFile, "\nblastIn: ", $blastIn, "\ntaxaIn: ", $taxaIn, "\n\n";
+    print STDERR "primerF: ", $primerF, "\nblastIn: ", $blastIn, "\ntaxaIn: ", $taxaIn, "\n\n";
     pod2usage(1);
     die;
 }
@@ -65,19 +68,9 @@ if(!defined($primerFile) || !defined($blastIn) || !defined($taxaIn)) {
 ##############################
 ### Read in primer sequences and store sequence lengths
 
-open my $primerFH, "$primerFile" or die "Could not open primer input\n";
 
-while(my $input = <$primerFH>) {
-    chomp $input;
-    
-    if($verbose) {
-	    print STDERR "Reading primers                      \r";
-    }
-    
-    my ($nameF, $primerF, $nameR, $primerR, $target) = split "\t", $input;
-    $forLength = length($primerF);
-    $revLength = length($primerR);
-}
+$forLength = length($primerF);
+$revLength = length($primerR);
 
 ##############################
 ### Pull in taxa info and make hash of form:
@@ -89,15 +82,15 @@ chomp @header;
 while(my $input = <$taxaFH>) {
     chomp $input;
     if($verbose) {
-	    $taxaCount++;
-	    print STDERR "Taxa entries processed: ", $taxaCount, "                      \r";
+        $taxaCount++;
+        print STDERR "Taxa entries processed: ", $taxaCount, "                      \r";
     }
 
     my ($taxid, $species, $superkingdom, $kingdom, $phylum, $class, $order, $family, $genus, $tax_name) = split "\t", $input;
 
     # all entries have tax_name, but not all have species
     if($species eq "NA") {
-	    $species = $tax_name;
+        $species = $tax_name;
     }
     #construct taxa hash
     $taxaHash{$taxid}{species} = $species;
@@ -127,39 +120,41 @@ while (my $input = <BLAST>) {
     chomp $input;
     
     if($input !~ /^\#/) {
-    	if($verbose) {
-    	    $blastCount++;
-    	    print STDERR "Blast entries processed: ", $blastCount, "                     \r";
-    	}
-    	## Need: qlen, slen to figure out if the whole thing aligned or if just part and if the subject has additional sequence that the
-    	## primers could have hit
-    	my ($query, $sTaxid, $score, $alignLen, $qStart, $qEnd, $qLen, $sStart, $sEnd, $sLen, $sAcc) = split "\t", $input;
+        if($verbose) {
+            $blastCount++;
+            print STDERR "Blast entries processed: ", $blastCount, "                     \r";
+        }
+        ## Need: qlen, slen to figure out if the whole thing aligned or if just part and if the subject has additional sequence that the
+        ## primers could have hit
+        my ($query, $sTaxid, $score, $alignLen, $qStart, $qEnd, $qLen, $sStart, $sEnd, $sLen, $sAcc) = split "\t", $input;
 
-    	my $alignPercent = 100 * ($alignLen / $qLen);
+        my $alignPercent = 100 * ($alignLen / $qLen);
     
       # check if alignment length is above a provided cutoff to avoid sequences with 30bp aligned out of a 300bp fragment
         # alignVar is a percent
         # there is a problem here. The output does not indicate which side each primer belongs on. For now I am assuming
         # the forward is on the front, but I may just change $forLength and $revLength to a numeric value option
-    	if($alignPercent >= (100 - $alignVar) && $alignPercent <= (100 + $alignVar)) {
-  	    if($sStart >= ($forLength + $qStart - 1) && $sLen > ($sEnd + $revLength + ($qLen - $qEnd))) {
-      		# Put results into hash to remove duplicates
-      		if(exists($taxaHash{$sTaxid})) {
-      		    $resultsHash{$taxaHash{$sTaxid}{superkingdom} . "\t" . 
-      				     $taxaHash{$sTaxid}{kingdom} . "\t" . 
-      				     $taxaHash{$sTaxid}{phylum} . "\t" . 
-      				     $taxaHash{$sTaxid}{class} . "\t" . 
-      				     $taxaHash{$sTaxid}{order} . "\t" . 
-      				     $taxaHash{$sTaxid}{family} . "\t" . 
-      				     $taxaHash{$sTaxid}{genus} . "\t" . 
-      				     $taxaHash{$sTaxid}{species}
-      			     } = 1;
-      		} else {
-      		    $notFoundTaxaList .= $sTaxid . ", "; 
+        if($alignPercent >= (100 - $alignVar) && $alignPercent <= (100 + $alignVar)) {
+          if($sStart >= ($forLength + $qStart - 1) && $sLen > ($sEnd + $revLength + ($qLen - $qEnd))) {
+              # Put results into hash to remove duplicates
+              if(exists($taxaHash{$sTaxid})) {
+                  if($taxaHash{$sTaxid}{species} !~ /($bannedWords)/ || $bannedWords eq "") {
+                    $resultsHash{$taxaHash{$sTaxid}{superkingdom} . "\t" . 
+                            $taxaHash{$sTaxid}{kingdom} . "\t" . 
+                            $taxaHash{$sTaxid}{phylum} . "\t" . 
+                            $taxaHash{$sTaxid}{class} . "\t" . 
+                            $taxaHash{$sTaxid}{order} . "\t" . 
+                            $taxaHash{$sTaxid}{family} . "\t" . 
+                            $taxaHash{$sTaxid}{genus} . "\t" . 
+                            $taxaHash{$sTaxid}{species}
+                        } = 1;
+                  }
+              } else {
+                  $notFoundTaxaList .= $sTaxid . ", "; 
               print STDERR "taxid ", $sTaxid, " taxonomic information not found!\n";
-      		    $notFoundTaxaCount++;
-      		}
-  	    }
+                  $notFoundTaxaCount++;
+              }
+          }
       }
     }
 }

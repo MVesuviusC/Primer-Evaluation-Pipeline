@@ -26,7 +26,7 @@ my $maxPrimersPerFile = 100;
 my $maxPrimerVariantsTested = 2000;
 my $forward;
 my $reverse;
-my $primerName;
+my $primerName = "primer";
 my $blastVer = "blastn";
 my $blastDb;
 my $processors;
@@ -143,18 +143,18 @@ if($forward) { # primers provided directly
     open PRIMERINPUTFILE, "$primerInput" or die "Could not open primer input\nWell, crap\n";
 
     while (my $input = <PRIMERINPUTFILE>) {
-	chomp $input;
+    chomp $input;
 
-	#### Need to build in check to be sure format is right and force uppercase
-	#### Also check that just one primer set is passed
-	my ($primerNameF, $primerF, $primerNameR, $primerR) = split "\t", $input;
+    #### Need to build in check to be sure format is right and force uppercase
+    #### Also check that just one primer set is passed
+    my ($primerNameF, $primerF, $primerNameR, $primerR) = split "\t", $input;
 
-	$forward = $primerF;
-	$reverse = $primerR;
+    $forward = $primerF;
+    $reverse = $primerR;
 
-	$primerName = $primerNameF . "_" . $primerNameR;
+    $primerName = $primerNameF . "_" . $primerNameR;
 
-	addPrimersToHash($primerF, $primerR, $primerName);
+    addPrimersToHash($primerF, $primerR, $primerName);
     }
     close PRIMERINPUTFILE; ############ need to change these to $primerInputFH style
 }
@@ -171,89 +171,91 @@ if($verbose) {
 # Also running ~100 fasta entries per batch seemed to be a good balance for RAM usage.
 my $blastnProc;
 if($processors <= 4) {
-	$blastnProc = $processors;
+    $blastnProc = $processors;
 } else {
-	$blastnProc = 4;
+    $blastnProc = 4;
 }
 
 for(my $i = 1; $i <= $primerOutFileNum; $i++) {
     if($verbose) {
-	print STDERR "Running blast on file number " . $i . "\n";
+        print STDERR "Running blast on file number " . $i . "\n";
     }
 
     my $blastCmd =
-	$blastVer . " " .
-	"-db " . $blastDb . " " .
-	"-query " . $tempName . "_" . $i . ".txt " .
-	"-task blastn " .
-	"-evalue 30000 " .
-	"-word_size 7 " .
-	"-max_hsps 100 " .
-	"-max_target_seqs 50000 " .
-	"-num_threads " . $blastnProc . " " .
-	"-reward 1 " .
-	"-penalty -1 " .
-	"-gapopen 2 " .
-	"-gapextend 1 " .
-	"-outfmt \"6 qseqid sgi qlen qstart qend sstart send slen sstrand sscinames scomnames qseq sseq staxids\" " .
-	"-ungapped " .
-	"-sum_stats true";
+    $blastVer . " " .
+    "-db " . $blastDb . " " .
+    "-query " . $tempName . "_" . $i . ".txt " .
+    "-task blastn " .
+    "-evalue 30000 " .
+    "-word_size 7 " .
+    "-max_hsps 100 " .
+    "-max_target_seqs 50000 " .
+    "-num_threads " . $blastnProc . " " .
+    "-reward 1 " .
+    "-penalty -1 " .
+    "-gapopen 2 " .
+    "-gapextend 1 " .
+    "-outfmt \"6 qseqid sgi qlen qstart qend sstart send slen sstrand qseq sseq staxids\" " .
+    "-ungapped " .
+    "-sum_stats true";
 
 
     open BLASTRESULTS, "-|", $blastCmd or die "Blast query failed\n";
 
     while(my $input = <BLASTRESULTS>) {
-	chomp $input;
-	my @parsed = parseBlast($input);
+        chomp $input;
+        my @parsed = parseBlast($input);
 
-	if(scalar(@parsed) > 0) {
-	    my $shouldBeIncluded = 1;
-	    my($qseqid, $sgi, $staxids, $sscinames, $scomnames, $ampStart, $ampEnd,
-	       $ampLength, $mismatchLoc, $mismatch3Prime, $lastMismatchLoc,
-	       $lastMismatch3Prime, $qseq, $sseq, $lastQseq, $lastSseq) = @parsed;
-	    if(exists($resultsHash{$qseqid . "\t" . $sgi})) {
-		for my $result (@{ $resultsHash{$qseqid . "\t" . $sgi} }) {
-		    my @resultArray = split "\t", $result;
-		    if(abs($resultArray[5] - $ampStart) < 20 && abs($resultArray[6] - $ampEnd) < 20) {
-			$shouldBeIncluded = 0; # amplicon is the same as a previous one
-		    }
-		}
-	    }
-	    if($shouldBeIncluded == 1) {
-		push @{ $resultsHash{$qseqid . "\t" . $sgi} }, join("\t", @parsed);
-	    }
-	}
-	if($verbose && $blastEntryCounter % 1000 == 0) {
-	    print STDERR "Parsing BLAST entry $blastEntryCounter                  \r";
-	}
-	$blastEntryCounter++;
+        if(scalar(@parsed) > 0) {
+            my $shouldBeIncluded = 1;
+            my($qseqid, $sgi, $staxids, $ampStart, $ampEnd,
+            $ampLength, $mismatchLoc, $mismatch3Prime, $lastMismatchLoc,
+            $lastMismatch3Prime, $qseq, $sseq, $lastQseq, $lastSseq) = @parsed;
+            if(exists($resultsHash{$qseqid . "\t" . $sgi})) {
+                for my $result (@{ $resultsHash{$qseqid . "\t" . $sgi} }) {
+                    my @resultArray = split "\t", $result;
+                    #if($resultArray[6] =~ /[fr]/) {
+                    #    print STDERR join("\t", @resultArray), "\n";
+                    #    die;
+                    #}
+                    if(abs($resultArray[3] - $ampStart) < 20 && abs($resultArray[4] - $ampEnd) < 20) {
+                        $shouldBeIncluded = 0; # amplicon is the same as a previous one
+                    }
+                }
+            }
+            if($shouldBeIncluded == 1) {
+                push @{ $resultsHash{$qseqid . "\t" . $sgi} }, join("\t", @parsed);
+            }
+        }
+        if($verbose && $blastEntryCounter % 1000 == 0) {
+            print STDERR "Parsing BLAST entry $blastEntryCounter                  \r";
+        }
+        $blastEntryCounter++;
     }
 }
 
 # print header
 print join("\t",
-	   "qSeqId",                                # query ID
-	   "sGi",                                   # hit gi
-	   "sTaxids",                               # taxid of hit - can be multiple
-	   "sSciNames",                             # scientific name
-	   "sComNames",                             # common name
-	   "sAmpStart",                             # start of amplicon location
-	   "sAmpEnd",                               # end amplicon location
-	   "sAmpLen",                               # amplicon length
-	   "primer1MismatchLoc",                    # location of mismatches
-	   "primer1Mismatch3PrimeTip",              # number of mismatches in the 3' end
-	   "primer2MismatchLoc",                    # location of mismatches other end
-	   "primer2Mismatch3Prime",                 # number of mismatches in the 3' end, other end
-	   "primer1QSeq",                           # query seq
-	   "primer1SSeq",                           # hit seq
-	   "primer2QSeq",                           # other end query seq
-	   "primer2SSeq"),                          # other end hit seq
+       "qSeqId",                                # query ID
+       "sGi",                                   # hit gi
+       "sTaxids",                               # taxid of hit - can be multiple
+       "sAmpStart",                             # start of amplicon location
+       "sAmpEnd",                               # end amplicon location
+       "sAmpLen",                               # amplicon length
+       "primer1MismatchLoc",                    # location of mismatches
+       "primer1Mismatch3PrimeTip",              # number of mismatches in the 3' end
+       "primer2MismatchLoc",                    # location of mismatches other end
+       "primer2Mismatch3Prime",                 # number of mismatches in the 3' end, other end
+       "primer1QSeq",                           # query seq
+       "primer1SSeq",                           # hit seq
+       "primer2QSeq",                           # other end query seq
+       "primer2SSeq"),                          # other end hit seq
     "\n";
 
 
 for my $primerGi (keys %resultsHash){
     for my $result (@{ $resultsHash{$primerGi} }) {
-	print $result, "\n";
+        print $result, "\n";
     }
 }
 
@@ -306,25 +308,25 @@ sub addPrimersToHash {
 
     for my $seq1 (@primerFArray) {
         for my $seq2 (@primerRArray) {
-	    if($primerEntriesInFile >= $maxPrimersPerFile) { # print out specified number of fasta entries per file
-		$primerOutFileNum++;
-		$primerEntriesInFile = 0;
-		close $primersOutFH;
-		open $primersOutFH, ">", $tempName . "_" . $primerOutFileNum . ".txt";
-	    }
+            if($primerEntriesInFile >= $maxPrimersPerFile) { # print out specified number of fasta entries per file
+                $primerOutFileNum++;
+                $primerEntriesInFile = 0;
+                close $primersOutFH;
+                open $primersOutFH, ">", $tempName . "_" . $primerOutFileNum . ".txt";
+            }
 
-	    if($primerCombinations < $maxPrimerVariantsTested) { # keep only the first $maxPrimerVariantsTested (2000) combinations
-		print $primersOutFH ">", $name, "\n", $seq1, "N" x $nCount, revComp($seq2), "\n";
-		$primerEntriesInFile++;
-	    }
+            if($primerCombinations < $maxPrimerVariantsTested) { # keep only the first $maxPrimerVariantsTested (2000) combinations
+                print $primersOutFH ">", $name, "\n", $seq1, "N" x $nCount, revComp($seq2), "\n";
+                $primerEntriesInFile++;
+            }
             $primerCombinations++;
         }
     }
     close $primersOutFH;
 
     if($verbose) {
-	print STDERR $primerCombinations, " primer combinations for ", $name, "\n";
-	print STDERR "A maximum of ", $maxPrimerVariantsTested, " combinations will be tested.\n";
+        print STDERR $primerCombinations, " primer combinations for ", $name, "\n";
+        print STDERR "A maximum of ", $maxPrimerVariantsTested, " combinations will be tested.\n";
     }
 }
 
@@ -386,60 +388,58 @@ sub uniq {
 sub parseBlast {
     my $blastData = shift;
     my ($qseqid, $sgi, $qlen, $qstart, $qend, $sstart, $send, $slen,
-        $sstrand, $sscinames, $scomnames, $qseq, $sseq, $staxids)
+        $sstrand, $qseq, $sseq, $staxids)
             = split "\t", $blastData;
     my @output;
 
     if($sgi eq $lastSgi) {
         my ($lastQseqid, $lastSgi, $lastQlen, $lastQstart, $lastQend,
-            $lastSstart, $lastSend, $lastSlen, $lastSstrand, $lastSscinames,
-            $lastScomnames, $lastQseq, $lastSseq, $lastStaxids)
+            $lastSstart, $lastSend, $lastSlen, $lastSstrand, $lastQseq, 
+            $lastSseq, $lastStaxids)
                 = split "\t", $lastLine;
 
         my @hitPositions = sort { $a <=> $b } ($sstart, $send, $lastSstart, $lastSend);
 
         if($sstrand eq $lastSstrand &&
-	   ($hitPositions[3] - $hitPositions[0] <= $maxAmpLen) &&
-	   ($hitPositions[3] - $hitPositions[0] >= $minAmpLen)) {
+       ($hitPositions[3] - $hitPositions[0] <= $maxAmpLen) &&
+       ($hitPositions[3] - $hitPositions[0] >= $minAmpLen)) {
             # count primer mismatches
             my ($lastMismatchLoc, $lastMismatch3Prime) = mismatchCounter($lastLine); #$lastQseq, $lastSseq, $lastQstart, $lastQend, $lastQseqid, $lastSgi, $lastSstart);
             my ($mismatchLoc, $mismatch3Prime) = mismatchCounter($blastData); #$qseq, $sseq, $qstart, $qend, $qseqid, $sgi);
 
 
-	    my $mismatchCountF = 0;
-	    if($lastMismatchLoc ne "") {
-		$mismatchCountF = ($lastMismatchLoc =~ tr/,/,/);
-		$mismatchCountF++; # 3,4 only has one comma, so need to +1
-	    }
-	    my $mismatchCountR = 0;
-	    if($mismatchLoc ne "") {
-		$mismatchCountR = ($mismatchLoc =~ tr/,/,/);
-		$mismatchCountR++;
-	    }
+        my $mismatchCountF = 0;
+        if($lastMismatchLoc ne "") {
+        $mismatchCountF = ($lastMismatchLoc =~ tr/,/,/);
+        $mismatchCountF++; # 3,4 only has one comma, so need to +1
+        }
+        my $mismatchCountR = 0;
+        if($mismatchLoc ne "") {
+        $mismatchCountR = ($mismatchLoc =~ tr/,/,/);
+        $mismatchCountR++;
+        }
 
-	    if($lastMismatch3Prime <= $primerTipMismatch &&
-	       $mismatch3Prime <= $primerTipMismatch &&
-	       $mismatchCountF <= $totalMismatchCount &&
-	       $mismatchCountR <= $totalMismatchCount) {
-		@output = (
-			   $qseqid,                                # query ID
-			   $sgi,                                   # hit gi
-			   $staxids,                               # taxid of hit - can be multiple
-			   $sscinames,                             # scientific name
-			   $scomnames,                             # common name
-			   $hitPositions[0],                       # start of amplicon location
-			   $hitPositions[3],                       # end amplicon location
-			   $hitPositions[3] - $hitPositions[0],    # amplicon length
-			   $mismatchLoc,                           # location of mismatches
-			   $mismatch3Prime,                        # number of mismatches in the 3' end
-			   $lastMismatchLoc,                       # location of mismatches other end
-			   $lastMismatch3Prime,                    # number of mismatches in the 3' end, other end
-			   $qseq,                                  # query seq
-			   $sseq,                                  # hit seq
-			   $lastQseq,                              # other end query seq
-			   $lastSseq                               # other end hit seq
-			   );
-	    }
+        if($lastMismatch3Prime <= $primerTipMismatch &&
+           $mismatch3Prime <= $primerTipMismatch &&
+           $mismatchCountF <= $totalMismatchCount &&
+           $mismatchCountR <= $totalMismatchCount) {
+        @output = (
+               $qseqid,                                # query ID
+               $sgi,                                   # hit gi
+               $staxids,                               # taxid of hit - can be multiple
+               $hitPositions[0],                       # start of amplicon location
+               $hitPositions[3],                       # end amplicon location
+               $hitPositions[3] - $hitPositions[0],    # amplicon length
+               $mismatchLoc,                           # location of mismatches
+               $mismatch3Prime,                        # number of mismatches in the 3' end
+               $lastMismatchLoc,                       # location of mismatches other end
+               $lastMismatch3Prime,                    # number of mismatches in the 3' end, other end
+               $qseq,                                  # query seq
+               $sseq,                                  # hit seq
+               $lastQseq,                              # other end query seq
+               $lastSseq                               # other end hit seq
+               );
+        }
         }
     }
     $lastLine = $blastData;
@@ -451,7 +451,7 @@ sub parseBlast {
 sub mismatchCounter {
     my $blastData = shift;
     my ($qseqid, $sgi, $qlen, $qstart, $qend, $sstart, $send, $slen,
-        $sstrand, $sscinames, $scomnames, $qseq, $sseq, $staxids)
+        $sstrand, $qseq, $sseq, $staxids)
             = split "\t", $blastData;
 
     my $primerShouldStart;
@@ -468,93 +468,93 @@ sub mismatchCounter {
     if($qstart < 20) { # query is the forward primer
         $primerShouldStart = 1;
         $primerShouldEnd = length(@{ $primerHash{$qseqid} }[0]);
-	$primerRealSeq = $forward;
-	if($sstrand eq "minus") {
-	    $primerRealSeq = revComp($primerRealSeq);
-	}
+    $primerRealSeq = $forward;
+    if($sstrand eq "minus") {
+        $primerRealSeq = revComp($primerRealSeq);
+    }
     } else { # query is the reverse primer
         $primerShouldStart = length(@{ $primerHash{$qseqid} }[0]) + $nCount + 1;
         $primerShouldEnd = $primerShouldStart + length(@{ $primerHash{$qseqid} }[1]) - 1;
-	$primerArrayIndex = 1;
-	$primerDir = "rev:";
-	$primerRealSeq = $reverse;
+    $primerArrayIndex = 1;
+    $primerDir = "rev:";
+    $primerRealSeq = $reverse;
 
-	if($sstrand eq "plus") {
-	    $primerRealSeq = revComp($primerRealSeq);
-	}
+    if($sstrand eq "plus") {
+        $primerRealSeq = revComp($primerRealSeq);
+    }
 
     }
 
     # Check left end and add sequences as needed
     print STDERR $blastData, "\n", $primerHash{$qseqid}[$primerArrayIndex], " real primer\n", $primerRealSeq, "\t", $hitRealSeq, "primerBeforeCheckingStart\n" if($debug);
     if($qstart != $primerShouldStart) {
-	if($qstart == $primerShouldStart + 1){
-#	    $primerRealSeq = "N" . $primerRealSeq;
-	    $hitRealSeq = "Z" . $hitRealSeq;
-	} else {
-	    my $seqBaseNumberToGet = $sstart - ($qstart - $primerShouldStart); #base position is 1-based
-	    if($seqBaseNumberToGet > 0) {
-#		my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], 0, ($qstart - $primerShouldStart)); #substr is 0-based
-#		$primerRealSeq = $seqToAdd . $primerRealSeq;
+    if($qstart == $primerShouldStart + 1){
+#        $primerRealSeq = "N" . $primerRealSeq;
+        $hitRealSeq = "Z" . $hitRealSeq;
+    } else {
+        my $seqBaseNumberToGet = $sstart - ($qstart - $primerShouldStart); #base position is 1-based
+        if($seqBaseNumberToGet > 0) {
+#        my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], 0, ($qstart - $primerShouldStart)); #substr is 0-based
+#        $primerRealSeq = $seqToAdd . $primerRealSeq;
 
-		my $seqRange = $seqBaseNumberToGet . "-" . ($sstart - 1);
+        my $seqRange = $seqBaseNumberToGet . "-" . ($sstart - 1);
 
-		my $getSeqCmd = "blastdbcmd -target_only -outfmt \"%s\" -db " . $blastDb . " -entry " . $sgi . " -range " . $seqRange;
-		print STDERR $getSeqCmd, "For start\n" if($debug);
-		my $seqBases = `$getSeqCmd`;
-		$numberOfBlastcmdCalls++;
-		chomp $seqBases;
-		$seqBases = uc($seqBases);
-		$hitRealSeq = $seqBases . $hitRealSeq;
-	    } elsif(($sstart - 1) > 0) {
-		# get what I can and put on N's for the rest
-		my $seqRange = "1-" . ($sstart - 1);
+        my $getSeqCmd = "blastdbcmd -target_only -outfmt \"%s\" -db " . $blastDb . " -entry " . $sgi . " -range " . $seqRange;
+        print STDERR $getSeqCmd, "For start\n" if($debug);
+        my $seqBases = `$getSeqCmd`;
+        $numberOfBlastcmdCalls++;
+        chomp $seqBases;
+        $seqBases = uc($seqBases);
+        $hitRealSeq = $seqBases . $hitRealSeq;
+        } elsif(($sstart - 1) > 0) {
+        # get what I can and put on N's for the rest
+        my $seqRange = "1-" . ($sstart - 1);
 
-		my $getSeqCmd = "blastdbcmd -target_only -outfmt \"%s\" -db " . $blastDb . " -entry " . $sgi . " -range " . $seqRange;
-		print STDERR $getSeqCmd, "For partial start\n" if($debug);
-		my $seqBases = `$getSeqCmd`;
-		$numberOfBlastcmdCalls++;
-		chomp $seqBases;
-		$seqBases = uc($seqBases);
-		$hitRealSeq = $seqBases . $hitRealSeq;
+        my $getSeqCmd = "blastdbcmd -target_only -outfmt \"%s\" -db " . $blastDb . " -entry " . $sgi . " -range " . $seqRange;
+        print STDERR $getSeqCmd, "For partial start\n" if($debug);
+        my $seqBases = `$getSeqCmd`;
+        $numberOfBlastcmdCalls++;
+        chomp $seqBases;
+        $seqBases = uc($seqBases);
+        $hitRealSeq = $seqBases . $hitRealSeq;
 
-		# Add N's for the rest
-		$hitRealSeq =  "N" x (abs($seqBaseNumberToGet) + 1) . $hitRealSeq;
-	    } else {
-		# the missing sequence from the subject is just missing from the sequence
-		$hitRealSeq =  "N" x (abs($seqBaseNumberToGet) + 1) . $hitRealSeq;
-	    }
-	}
+        # Add N's for the rest
+        $hitRealSeq =  "N" x (abs($seqBaseNumberToGet) + 1) . $hitRealSeq;
+        } else {
+        # the missing sequence from the subject is just missing from the sequence
+        $hitRealSeq =  "N" x (abs($seqBaseNumberToGet) + 1) . $hitRealSeq;
+        }
+    }
     }
     # Check right end of primer and add sequences as needed
     print STDERR $primerRealSeq, "\t", $hitRealSeq, "primer after start fix\n" if($debug);
     if($qend != $primerShouldEnd) {
-	if($qend == $primerShouldEnd - 1) {
-#	    $primerRealSeq = $primerRealSeq . "N";
+    if($qend == $primerShouldEnd - 1) {
+#        $primerRealSeq = $primerRealSeq . "N";
             $hitRealSeq = $hitRealSeq . "Z";
-	} else {
-	    my $seqEndNumberToGet = $send + ($primerShouldEnd - $qend); #base position is 1-based
-	    my $seqRange = ($send + 1) . "-" . $seqEndNumberToGet;
+    } else {
+        my $seqEndNumberToGet = $send + ($primerShouldEnd - $qend); #base position is 1-based
+        my $seqRange = ($send + 1) . "-" . $seqEndNumberToGet;
 
-	    my $getSeqCmd = "blastdbcmd -target_only -outfmt \"%s\" -db " . $blastDb . " -entry " . $sgi . " -range " . $seqRange;
-	    my $seqBases = `$getSeqCmd`;
-	    $numberOfBlastcmdCalls++;
-	    print STDERR $getSeqCmd, "\tcommand to get end\n" if($debug);
-	    chomp $seqBases;
-	    #if(length($seqBases) == $seqEndNumberToGet - $send) { # if $seqRange is outside of available sequence, the full sequence is returned
-	    $seqBases = uc($seqBases);
-	    $hitRealSeq = $hitRealSeq . $seqBases;
-	    #}
+        my $getSeqCmd = "blastdbcmd -target_only -outfmt \"%s\" -db " . $blastDb . " -entry " . $sgi . " -range " . $seqRange;
+        my $seqBases = `$getSeqCmd`;
+        $numberOfBlastcmdCalls++;
+        print STDERR $getSeqCmd, "\tcommand to get end\n" if($debug);
+        chomp $seqBases;
+        #if(length($seqBases) == $seqEndNumberToGet - $send) { # if $seqRange is outside of available sequence, the full sequence is returned
+        $seqBases = uc($seqBases);
+        $hitRealSeq = $hitRealSeq . $seqBases;
+        #}
 
-	    # Check if the full sequence was not available, and fill in with N's otherwise
-	    if(length($hitRealSeq) != length($primerRealSeq)) {
-		$hitRealSeq = "N" x (length($primerRealSeq) - length($hitRealSeq)) . $hitRealSeq;
-	    }
+        # Check if the full sequence was not available, and fill in with N's otherwise
+        if(length($hitRealSeq) < length($primerRealSeq)) {
+        $hitRealSeq = "N" x (length($primerRealSeq) - length($hitRealSeq)) . $hitRealSeq;
+        }
 
-#		my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], -1 * ($primerShouldEnd - $qend)); #substr is 0-based
-#		$primerRealSeq = $primerRealSeq . $seqToAdd;
-	    #}
-	}
+#        my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], -1 * ($primerShouldEnd - $qend)); #substr is 0-based
+#        $primerRealSeq = $primerRealSeq . $seqToAdd;
+        #}
+    }
     }
 
     print STDERR $primerRealSeq, "\t", $hitRealSeq, "\t", $primerDir, " after end fix\n" if($debug);
@@ -565,31 +565,31 @@ sub mismatchCounter {
     # This doesn't work if ambiguous bases are present, but that's fine
     if($primerRealSeq ne $hitRealSeq) {
 
-	# if the hit is on the negative strand, need to revcomp the sequence
-	if($sstrand ne "plus") {
-	    my $primerRealSeq = revComp($primerRealSeq);
-	    my $hitRealSeq = revComp($hitRealSeq);
-	}
+    # if the hit is on the negative strand, need to revcomp the sequence
+    if($sstrand ne "plus") {
+        my $primerRealSeq = revComp($primerRealSeq);
+        my $hitRealSeq = revComp($hitRealSeq);
+    }
 
-	# rev complement forward primers so they're facing 3'---5' so $i = 0 is the 3' end
-	if($primerDir eq "for:") {
-	    $primerRealSeq = revComp($primerRealSeq);
-	    $hitRealSeq = revComp($hitRealSeq);
-	}
+    # rev complement forward primers so they're facing 3'---5' so $i = 0 is the 3' end
+    if($primerDir eq "for:") {
+        $primerRealSeq = revComp($primerRealSeq);
+        $hitRealSeq = revComp($hitRealSeq);
+    }
 
-	# Do the comparison for each base
-	for(my $i = 0; $i < length($primerRealSeq); $i++) {
-	    my $qBase = substr($primerRealSeq, $i, 1);
-	    my $sBase = substr($hitRealSeq, $i, 1);
-	    if($sBase !~ /[$degenerateRegexHash{$qBase}]/) {
-		# Need to complement the mismatch since we revComp'd the sequence above
-		# if it was for: and if it is rev: then we still need to complement it
-		$mismatchLocs .= "," . ($i + 1) . "_" . revComp($sBase);
-		if($i <= $primerTipLen) {
-		    $mismatch3Prime++;
-		}
-	    }
-	}
+    # Do the comparison for each base
+    for(my $i = 0; $i < length($primerRealSeq); $i++) {
+        my $qBase = substr($primerRealSeq, $i, 1);
+        my $sBase = substr($hitRealSeq, $i, 1);
+        if($sBase !~ /[$degenerateRegexHash{$qBase}]/) {
+        # Need to complement the mismatch since we revComp'd the sequence above
+        # if it was for: and if it is rev: then we still need to complement it
+        $mismatchLocs .= "," . ($i + 1) . "_" . revComp($sBase);
+        if($i <= $primerTipLen) {
+            $mismatch3Prime++;
+        }
+        }
+    }
     }
     $mismatchLocs =~ s/^,//; # get rid of leading comma
     return ($primerDir . $mismatchLocs, $mismatch3Prime);

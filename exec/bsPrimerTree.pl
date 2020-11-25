@@ -48,18 +48,18 @@ my $minTaxaToPlot = 20;
 # i = integer, s = string
 GetOptions ("verbose"             => \$verbose,
             "help"                => \$help,
-	    "threads=i"           => \$threads,
-	    "inFile=s"            => \$inFile,
-	    "outDir=s"            => \$outDir,
-	    "blastDb=s"           => \$blastDb,
-	    "taxDb=s"             => \$taxDb,
-	    "bannedWord=s"        => \$bannedWords,
-	    "maxAlignedSeqs=i"    => \$maxAlignedSeqs,
-	    "maxSeqsPerSpecies=i" => \$maxSeqPerSp,
-	    "noPlots"             => \$noPlots,
-	    "plotPointSize=i"     => \$plotPtSz,
-	    "plotFontSize=i"      => \$plotFtSz,
-	    "maxTaxaToPlot=i"     => \$minTaxaToPlot
+      	    "threads=i"           => \$threads,
+      	    "inFile=s"            => \$inFile,
+      	    "outDir=s"            => \$outDir,
+      	    "blastDb=s"           => \$blastDb,
+      	    "taxDb=s"             => \$taxDb,
+      	    "bannedWords=s"        => \$bannedWords,
+      	    "maxAlignedSeqs=i"    => \$maxAlignedSeqs,
+      	    "maxSeqsPerSpecies=i" => \$maxSeqPerSp,
+      	    "noPlots"             => \$noPlots,
+      	    "plotPointSize=i"     => \$plotPtSz,
+      	    "plotFontSize=i"      => \$plotFtSz,
+      	    "maxTaxaToPlot=i"     => \$minTaxaToPlot
       )
  or pod2usage(0) && exit;
 
@@ -124,8 +124,6 @@ while (my $input = <$inputFH>){
     my($qSeqId,                                # query ID
        $sGi,                                   # hit gi
        $sTaxids,                               # taxid of hit - can be multiple
-       $sSciNames,                             # scientific name
-       $sComNames,                             # common name
        $sAmpStart,                             # start of amplicon location
        $sAmpEnd,                               # end amplicon location
        $sAmpLen,                               # amplicon length
@@ -260,13 +258,14 @@ while(my $blastInput = <$blastDbCmdResponse>) {
     ### print out
   if(defined($species)) {
 
+		if($species eq "NA") {
+  			$species = $tax_name;
+ 		}
+
     # filter out banned words to get rid of uncertain taxonomy
-    if($species !~ /$bannedWords/ || $bannedWords eq "") {
+    if($species !~ /($bannedWords)/ || $bannedWords eq "") {
 
       # some of the entries in the tax db don't have species labeled >:-|
-  		if($species eq "NA") {
-  			$species = $tax_name;
-  		}
 
   		$species =~ s/\'//g; # get rid of any ' in the species name - it messes up FastTree
 
@@ -347,7 +346,7 @@ open my $mismatchLocsFile, ">", $outDir . "primerMismatchLocs.txt";
 print $mismatchLocsFile "# 1 is the 3 prime end of the primer\n";
 print $mismatchLocsFile join("\t", "taxid", "superkingdom", "kingdom", "phylum",
 			 "class", "order", "family", "genus", "species", "direction",
-			 "mismatchLoc", "mismatchBase", "count", "totalCount"), "\n";
+			 "mismatchLoc", "mismatchBase", "count"), "\n";
 
 for my $taxid (keys %taxaHash) {
 	# Mismatch counts
@@ -506,7 +505,7 @@ while(my $fasta = <$alignedFastaFH>) {
 	      $distHash{$keyToUse}{sum} += $dist;
 	      # Check if $distHash entry exists, if not, initialize at 1
 	      if(!exists($distHash{$keyToUse}{count})) {
-		  $distHash{$keyToUse}{count} = 1;
+		  	$distHash{$keyToUse}{count} = 1;
 	      }
 	      $distHash{$keyToUse}{count}++;
 	  }
@@ -522,7 +521,7 @@ while(my $fasta = <$alignedFastaFH>) {
 
 	      $distHash{$keyToUse}{sum} += $dist;
 	      if(!exists($distHash{$keyToUse}{count})) {
-		  $distHash{$keyToUse}{count} = 1;
+		  	$distHash{$keyToUse}{count} = 1;
 	      }
 	      $distHash{$keyToUse}{count}++;
 	  }
@@ -646,8 +645,8 @@ sub trimPrimer2 {
 	    print STDERR $gi, "\t", $primer2, "\t", $seq, "\n";
 	}
     } else {
-	if($seq =~ /^$primer2/) {
-	    $seq =~ s/^$primer2//;
+		if($seq =~ /^$primer2/) {
+		    $seq =~ s/^$primer2//;
 	} elsif($seq =~ /^$RCprimer2/) {
 	    $seq =~ s/^$RCprimer2//;
 	} else {
@@ -664,8 +663,8 @@ sub dist {
     my $seq2 = $_[1];
 
     if(length($seq1) != length($seq2)) {
-	print STDERR "compared sequences differ in length\n";
-	die;
+		print STDERR "compared sequences differ in length\n";
+		die;
     }
 
     my $dist = 0;
@@ -674,11 +673,11 @@ sub dist {
     my @seq2Array = split("", $seq2);
 
     for(my $i = 0; $i < scalar(@seq1Array); $i++) {
-	if($seq1Array[$i] ne $seq2Array[$i]) {
-	    if($seq1Array[$i] !~ /[nN-]/ && $seq2Array[$i] !~ /[nN-]/) {
-		$dist++;
-	    }
-	}
+		if($seq1Array[$i] ne $seq2Array[$i]) {
+			if($seq1Array[$i] !~ /[nN-]/ && $seq2Array[$i] !~ /[nN-]/) {
+			$dist++;
+			}
+		}
     }
     return $dist;
 }

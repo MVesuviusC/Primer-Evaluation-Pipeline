@@ -20,13 +20,11 @@ use Pod::Usage;
 my $verbose;
 my $help;
 my $input;
-my $outDir = '.';
 
 # i = integer, s = string
 GetOptions ("verbose"           => \$verbose,
             "help"              => \$help,
       	    "input=s"           => \$input,
-      	    "outDir=s"          => \$outDir
       )
  or pod2usage(0) && exit;
 
@@ -36,11 +34,11 @@ pod2usage(1) && exit if ($help);
 # Global variables
 ##############################
 my %taxaStorageHash;
+my %percentSingleHash;
 
 ##############################
 # Code
 ##############################
-$outDir .= '/';
 
 ##############################
 ### Store all data in a hash to keep unique entries
@@ -60,25 +58,24 @@ while (my $input = <$inputFH>){
     chomp $input;
     my @inputArray = split "\t", $input;
     my $query = $inputArray[0];
-	
 	  # order through species
 	  for(my $level = 7; $level <=  10; $level++) {
 	    if($inputArray[$level] ne "NA") {
     		# Hash organization: $taxaStorageHash{Taxa level}{query ID}{Taxa name}
     		# This keeps one copy of each taxa name for each query for each taxa level so I can count later
 		    $taxaStorageHash{$labelArray[$level]}{$query}{$inputArray[$level]} = 1;
-	    }	
+	    }
 	  }
 }
 
 ##############################
 ### Count number of taxa names per level per query and print
 
-open my $longOutputFH, ">", $outDir . "topHitSummary.txt";
-open my $averageOutputFH, ">", $outDir . "topHitMeans.txt";
+#open my $longOutputFH, ">", $outDir . "topHitSummary.txt";
+#open my $averageOutputFH, ">", $outDir . "topHitMeans.txt";
 
-print $longOutputFH "TaxaLevel\tquery\tUniqueTaxaHit\n";
-print $averageOutputFH "TaxaLevel\tMeanNumTaxaHit\n";
+#print $longOutputFH "TaxaLevel\tquery\tUniqueTaxaHit\n";
+#print $averageOutputFH "\tMeanNumTaxaHit\n";
 
 for my $taxaLevel (keys %taxaStorageHash) {
     my $taxaCountSum = 0;
@@ -86,19 +83,26 @@ for my $taxaLevel (keys %taxaStorageHash) {
     for my $queryID (keys %{ $taxaStorageHash{$taxaLevel} }) {
     	my @keyArray = keys %{ $taxaStorageHash{$taxaLevel}{$queryID} };
     	my $numTaxa = scalar(@keyArray);
-    
-    	print $longOutputFH $taxaLevel, "\t", $queryID, "\t", $numTaxa, "\n";
-    	
+
+		if($numTaxa == 1) {
+			$percentSingleHash{$taxaLevel}{singleHitCount}++;
+		}
+		$percentSingleHash{$taxaLevel}{levelCount}++;
+
     	if($numTaxa != 0) { # skip the queries that hit nothing useful
     	    $queryNum++;
     	    $taxaCountSum += $numTaxa;
     	}
     }
     if($queryNum != 0) {
-    	print $averageOutputFH $taxaLevel, "\t", $taxaCountSum / $queryNum, "\n";
+    	print "MeanNumTaxaMatchingSeq_", $taxaLevel, "\t", $taxaCountSum / $queryNum, "\n";
     } else {
-    	print $averageOutputFH $taxaLevel, "\tND\n";
+    	print "MeanNumTaxaMatchingSeq_", $taxaLevel, "\tND\n";
     }
+}
+
+for my $taxaLevel (keys %percentSingleHash) {
+	print "PercentSeqsSingleBestMatch_", $taxaLevel, "\t", $percentSingleHash{$taxaLevel}{singleHitCount} / $percentSingleHash{$taxaLevel}{levelCount}, "\n";
 }
 
 

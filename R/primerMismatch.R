@@ -15,14 +15,6 @@ primer_mismatch_count <- function(output_dir, target_taxa, target_level) {
                                  stringsAsFactors = FALSE,
                                  header = TRUE)
 
-  # Get rid of hits with "banned" words
-  primer_mismatches <- as.data.frame(primer_mismatches[grep(banned_words,
-                                                            primer_mismatches$species,
-                                                            perl = T,
-                                                            invert = T),])
-  # Get rid of hits with only genus (no space in name)
-  primer_mismatches <- primer_mismatches[grep(" ", primer_mismatches$species),]
-
   # Make forward and reverse better
   primer_mismatches$direction <- gsub("for",
                                       "Forward",
@@ -60,19 +52,6 @@ primer_mismatch_loc <- function(output_dir, target_taxa, target_level) {
                                    stringsAsFactors = FALSE,
                                    comment.char = "#",
                                    header = TRUE)
-
-  # Get rid of hits with "banned" words
-  ####
-  ### This makes the "totalCount" column incorrect since we're discarding some ***********************************************
-  ### Need to correct this
-  ####
-  primer_mismatch_locs <- as.data.frame(primer_mismatch_locs[grep(banned_words,
-                                                              primer_mismatch_locs$species,
-                                                              perl = T,
-                                                              invert = T),])
-
-  # Get rid of hits with only genus (no space in name)
-  primer_mismatch_locs <- primer_mismatch_locs[grep(" ", primer_mismatch_locs$species),]
 
   # Make forward and reverse better
   primer_mismatch_locs$direction <- gsub("for",
@@ -118,7 +97,7 @@ plot_primer_mismatch_locs <- function(forward, reverse, output_dir,
                                                target_taxa = target_taxa,
                                                target_level = target_level) %>%
     dplyr::filter(OnTarget == target) %>%
-    dplyr::filter(mismatchBase %in% c("A", "T", "G", "C"))
+    dplyr::filter(mismatchBase %in% c("A", "T", "G", "C", NA))
 
   # Make named list of primers to use as labels on figures
   Forward <- rev(strsplit(as.character(forward), split = "")[[1]])

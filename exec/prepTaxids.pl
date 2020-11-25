@@ -7,10 +7,10 @@ use Pod::Usage;
 
 ##############################
 # By Matt Cannon
-# Date: 10/28/19
-# Last modified: 10/28/19
-# Title: filterFastaNs.pl
-# Purpose: Get rid of fasta entries with Ns in seqs
+# Date: 11/06/20
+# Last modified: 11/06/20
+# Title: prepTaxids.pl
+# Purpose: Prep taxids for getTaxaLocal.pl
 ##############################
 
 ##############################
@@ -20,14 +20,12 @@ use Pod::Usage;
 
 my $verbose;
 my $help;
-my $fastaIn;
-my $targetTaxa;
+my $inFile;
 
 # i = integer, s = string
 GetOptions ("verbose"           => \$verbose,
             "help"              => \$help,
-	          "fasta=s"           => \$fastaIn,
-            "targetTaxa=s"      => \$targetTaxa
+            "inFile=s"          => \$inFile
       )
  or pod2usage(0) && exit;
 
@@ -37,34 +35,31 @@ pod2usage(1) && exit if ($help);
 ##############################
 # Global variables
 ##############################
-
+my %taxids;
 
 ##############################
 # Code
 ##############################
 
+$inFile =~ s/(.*\.gz)\s*$/gzip -dc < $1|/;
 
 ##############################
 ### Stuff
 ### More stuff
 
-$/ = "\n>";
-open my $fastaFH, "$fastaIn" or die "Could not open fasta input\nWell, crap\n";
+open my $blastResultsInput, $inFile or die "Could not open input\nWell, crap\n";
 
-while (my $input = <$fastaFH>){
+while (my $input = <$blastResultsInput>){
     chomp $input;
-    my ($header, @sequences) = split "\n", $input;
-    my $seq = join("", @sequences);
-
-    $header =~ s/>//; # get rid of ">" in first entry
-
-    if($seq !~ /N/i && $header =~ /-$targetTaxa:/) {
-	    print ">", $header, "\n", $seq, "\n";
+    if($input !~ /\#/) {
+        my @lineArray = split "\t", $input;
+        $taxids{$lineArray[1]} = 1;
     }
 }
 
-$/ = "\n";
-
+for my $taxid (keys %taxids) {
+    print $taxid, "\n";
+}
 
 
 ##############################

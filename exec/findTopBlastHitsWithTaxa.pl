@@ -21,12 +21,14 @@ my $verbose;
 my $help;
 my $blastIn;
 my $taxaIn;
+my $bannedWords = "";
 
 # i = integer, s = string
 GetOptions ("verbose"           => \$verbose,
             "help"              => \$help,
-            "blastIn=s"		=> \$blastIn,
-            "taxaIn=s"		=> \$taxaIn
+            "blastIn=s"         => \$blastIn,
+            "taxaIn=s"          => \$taxaIn,
+            "bannedWords=s"     => \$bannedWords
       )
  or pod2usage(0) && exit;
 
@@ -85,7 +87,7 @@ while (my $input = <$blastFh>) {
 	if($score >= $maxScore) {
 	    if(exists($taxaHash{$sTaxid})) {
 		# Don't print any hit that has uncertain taxonomic assignment
-		if($taxaHash{$sTaxid}{species} !~ /sp\.|cf\.|aff\.|affin\.|isolate|uncultured|symbiont|unidentified|unclassified|environmental|^NA$/i) {
+		if($taxaHash{$sTaxid}{species} !~ /($bannedWords)/ || $bannedWords eq "") {
 		    # Don't print any hits where only the genus is present (no space)
 		    if($taxaHash{$sTaxid}{species} =~ / /) {
 			print join("\t",

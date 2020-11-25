@@ -1,6 +1,7 @@
 
 #' Title
 #'
+#' Need to double check the output from bsPrimerTree to ensure it's accurate
 #' @param output_dir
 #' @param target_taxa
 #' @param target_level
@@ -15,16 +16,6 @@ distance_data <- function(output_dir, target_taxa, target_level) {
 
   distance$OnTarget <- "Off-target"
   distance$OnTarget[grepl(target_taxa, distance[[target_level]])] <- "On-target"
-
-  # Get rid of hits with "banned" words
-  distance <- as.data.frame(distance[grep(paste(banned_words, collapse = "|"),
-                                          distance$species,
-                                          perl = T,
-                                          invert = T),])
-
-  # Get rid of hits with only genus (no space in name)
-  # Need to keep -
-  distance <- distance[grep("[ ^-]", distance$species, perl = TRUE),]
 
   distance_summary <- distance %>%
     dplyr::group_by(., CompLevel, OnTarget) %>%

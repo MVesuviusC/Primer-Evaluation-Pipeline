@@ -642,7 +642,7 @@ write.table(potentialSpecies, file = paste(params$outDir, "/couldHaveHit/potenti
 
 
 ### Generate list of all known species within the target taxa
-Vasco Elbrecht brought up an important point. For sequences contributed to the database, the primers used to generate the sequence are usually trimmed. This means that any sequence in the database genrated using the primers currently tested will be defined as "unsequenced" because the sequence does not include the primer sequences.
+Vasco Elbrecht brought up an important point. For sequences contributed to the database, the primers used to generate the sequence are usually trimmed. This means that any sequence in the database generated using the primers currently tested will be defined as "unsequenced" because the sequence does not include the primer sequences.
 
 
 ```{bash listAllSpecies, dependson = 'bsPrimerTree', eval = TRUE}
