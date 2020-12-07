@@ -10,16 +10,24 @@ output <- list()
 #' @param tax_db path to taxonomy database created with make_tax_db()
 #' @param output_dir directory to output intermediate files
 #' @param threads number of processes to use
-#' @param target_taxa taxa targeted by the assay - needs to be one of "skpcofgs"
+#' @param target_taxa taxonomic group targeted by the assay - needs to be one of "skpcofgs"
 #' @param target_level taxonomic level of the targeted taxa
 #' @param assay_name name of the assay
 #' @param ... other arguments
 #' @param banned_words 
 #'
 #' @return
+#' A bsPrimerTree object
 #' @export
 #'
 #' @examples
+#' 
+#' test <- eval_assay(forward="TGGTCGCAAGGCTGAAACTT", 
+#'                    reverse="TTGCCTCCAGCTTCCCTACA", 
+#'                    tax_db="taxonomy.db", 
+#'                    assay_name="testRun", 
+#'                    target_taxa = "Blastocystis", 
+#'                    target_level = "genus")
 #'
 eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                        blast_path = "blastn", blast_db = "nt", tax_db,
@@ -185,10 +193,9 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
 
 #' Check that the dependencies are present
 #'
-#' @param blast_path 
+#' @param blast_path path to blast executable
 #'
 #' @return
-#' @export
 #'
 #' @examples
 #'

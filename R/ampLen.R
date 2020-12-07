@@ -1,16 +1,19 @@
-
-
-#' Title
+#' Get data on the distribution of amplicon lengths for the tested assay
 #'
-#' @param output_dir
-#' @param target_taxa
-#' @param target_level
+#' @param output_dir directory to output intermediate files
+#' @param target_taxa taxonomic group targeted by the assay - needs to be one of "skpcofgs"
+#' @param target_level taxonomic level of the targeted taxa
 #'
 #' @return
+#' a dataframe with taxonomy and amplicon length data
+#' 
 #' @export
 #'
 #' @examples
-#'
+#' amp_lens <- amplicon_len(output_dir = "output",
+#'                          target_taxa = "Blastocystis", 
+#'                          target_level = "genus")
+#'                          
 amplicon_len <- function(output_dir, target_taxa, target_level) {
   # Pull in data
   amplicon_len_df <- read.delim(paste(output_dir,
@@ -26,16 +29,19 @@ amplicon_len <- function(output_dir, target_taxa, target_level) {
 }
 
 
-#' Title
+#' Plot the distribution of amplicon lengths for the tested assay
 #'
-#' @param output_dir
-#' @param target_taxa
-#' @param target_level
+#' @param output_dir directory to output intermediate files
+#' @param target_taxa taxonomic group targeted by the assay - needs to be one of "skpcofgs"
+#' @param target_level taxonomic level of the targeted taxa
 #'
-#' @return
 #' @export
 #'
 #' @examples
+#' plot_amplicon_len(output_dir = "output",
+#'                   target_taxa = "Blastocystis", 
+#'                  target_level = "genus")
+#'                  
 plot_amplicon_len <- function(output_dir, target_taxa, target_level) {
   amplicon_df <- amplicon_len(output_dir, target_taxa, target_level)
 

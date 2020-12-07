@@ -18,6 +18,7 @@ Note that this pipeline likely requires around 40G of RAM minimum to run
 
 ## Usage
 
+test <- eval_assay(forward="TGGTCGCAAGGCTGAAACTT", reverse="TTGCCTCCAGCTTCCCTACA", blast_path="~/bin/ncbi-blast-2.10.1+/bin/blastn", blast_db="~/SerreDLab-3/databases/blast/nt", tax_db="~/SerreDLab-3/databases/taxonomy.db", assay_name="testName", target_taxa = "Blastocystis", target_level = "genus")
 
 
 ## Output
