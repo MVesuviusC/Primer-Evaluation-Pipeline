@@ -4,14 +4,14 @@
 \alias{check_depends}
 \title{Check that the dependencies are present}
 \usage{
-check_depends()
+check_depends(blast_exe = "blastn")
+}
+\arguments{
+\item{blast_exe}{character, path to blast executable}
 }
 \value{
-
+logical, FALSE if all dependencies are present
 }
 \description{
 Check that the dependencies are present
-}
-\examples{
-
 }

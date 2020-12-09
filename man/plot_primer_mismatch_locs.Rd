@@ -2,29 +2,23 @@
 % Please edit documentation in R/primerMismatch.R
 \name{plot_primer_mismatch_locs}
 \alias{plot_primer_mismatch_locs}
-\title{Title}
+\title{Plot primer nucleotide mismatch locations}
 \usage{
-plot_primer_mismatch_locs(
-  forward,
-  reverse,
-  output_dir,
-  target_taxa,
-  target_level
-)
+plot_primer_mismatch_locs(bsPrimerTree, target = "On-target")
 }
 \arguments{
-\item{target_level}{}
+\item{bsPrimerTree}{a bsPrimerTree object returned by
+\code{\link{eval_assay}}}
+
+\item{target}{either "On-target" or "Off-target"}
 }
 \value{
-
+a plot of mismatch locations
 }
 \description{
-Title
+Plot primer nucleotide mismatch locations
 }
 \examples{
-test2 <- plot_primer_mismatch_locs(forward = "CGGTTGGGGTGACCTCGGA",
-                                   reverse = "GCTGTTATCCCTAGGGTAACT",
-                                   output_dir = "C:/Users/MattDellLaptop/Desktop/mam16SOut2/",
-                                   target_taxa = "Mammalia",
-                                   target_level = "class")
+plot_primer_mismatch_locs(bsPrimerTree = blastoExample,
+                                   target = "On-target")
 }

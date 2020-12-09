@@ -2,16 +2,21 @@
 % Please edit documentation in R/findTargets.R
 \name{list_on_target_amplifiable}
 \alias{list_on_target_amplifiable}
-\title{Title}
+\title{List on-target amplifiable species}
 \usage{
 list_on_target_amplifiable(output_dir, target_taxa, target_level)
 }
 \arguments{
-\item{target_level}{}
+\item{output_dir}{character, directory to output intermediate files}
+
+\item{target_taxa}{character, taxonomic group targeted by the assay - needs
+to be one of "skpcofgs"}
+
+\item{target_level}{character, taxonomic level of the targeted taxa}
 }
 \value{
-
+a table of taxonomic data
 }
 \description{
-Title
+List on-target amplifiable species
 }

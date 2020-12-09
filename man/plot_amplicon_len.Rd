@@ -2,16 +2,18 @@
 % Please edit documentation in R/ampLen.R
 \name{plot_amplicon_len}
 \alias{plot_amplicon_len}
-\title{Title}
+\title{Plot the distribution of amplicon lengths for the tested assay}
 \usage{
-plot_amplicon_len(output_dir, target_taxa, target_level)
+plot_amplicon_len(bsPrimerTree)
 }
 \arguments{
-\item{target_level}{}
-}
-\value{
-
+\item{bsPrimerTree}{a bsPrimerTree object returned by
+\code{\link{eval_assay}}}
 }
 \description{
-Title
+Plot the distribution of amplicon lengths for the tested assay
+}
+\examples{
+plot_amplicon_len(bsPrimerTree = blastoExample)
+
 }

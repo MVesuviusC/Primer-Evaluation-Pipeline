@@ -1,12 +1,11 @@
-
-#' Title
+#' Get genetic distance data on amplifiable sequences
 #'
-#' Need to double check the output from bsPrimerTree to ensure it's accurate
-#' @param output_dir
-#' @param target_taxa
-#' @param target_level
+#' @param output_dir character, directory to output intermediate files
+#' @param target_taxa character, taxonomic group targeted by the assay - needs
+#'   to be one of "skpcofgs"
+#' @param target_level character, taxonomic level of the targeted taxa
 #'
-#' @return
+#' @return A table of taxa and distance data
 #'
 #' @examples
 distance_data <- function(output_dir, target_taxa, target_level) {
@@ -19,20 +18,20 @@ distance_data <- function(output_dir, target_taxa, target_level) {
 
   distance_summary <- distance %>%
     dplyr::group_by(., CompLevel, OnTarget) %>%
-    dplyr::mutate(., LevelAverage = sum(MeanDist * nCompared) / sum(nCompared)) %>%
+    dplyr::mutate(., LevelAverage =
+                    sum(MeanDist * nCompared) / sum(nCompared)) %>%
     dplyr::ungroup()
 
   return(distance_summary)
 }
 
-
-#' Title
+#' Plot genetic distance data between amplifiable sequences
 #'
-#' @param output_dir
-#' @param target_taxa
-#' @param target_level
-#' @param levels_to_use
-#' @param target
+#' @param bsPrimerTree a bsPrimerTree object returned by
+#'   \code{\link{eval_assay}}
+#' @param levels_to_use character, taxonomic levels to plot - needs
+#'   to be one of "skpcofgs"
+#' @param target character, one of either On-target or Off-target
 #'
 #' @return
 #' @export
@@ -41,11 +40,10 @@ distance_data <- function(output_dir, target_taxa, target_level) {
 plot_distance <- function(bsPrimerTree,
                           levels_to_use = c("family", "genus", "species"),
                           target = "On-target") {
+  output_dir <- bsPrimerTree$summary_table$output_dir
+  target_taxa <- bsPrimerTree$summary_table$target_taxa
+  target_level <- bsPrimerTree$summary_table$target_level
 
-  output_dir = bsPrimerTree$summary_table$output_dir
-  target_taxa = bsPrimerTree$summary_table$target_taxa
-  target_level = bsPrimerTree$summary_table$target_level
-  
   distance_summary <- distance_data(output_dir = output_dir,
                                     target_taxa = target_taxa,
                                     target_level = target_level) %>%

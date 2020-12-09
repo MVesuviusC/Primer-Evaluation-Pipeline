@@ -5,17 +5,21 @@
 \title{Plot the a phylogenetic tree showing amplifiable targets
 from data created from find_targets}
 \usage{
-display_tree(output_dir, ...)
+display_tree(bsPrimerTree, ...)
 }
 \arguments{
-\item{output_dir}{directory where \code{\link{find_targets}} wrote output}
+\item{bsPrimerTree}{a bsPrimerTree object returned by
+\code{\link{eval_assay}}}
 
 \item{...}{additional arguments passed to \code{\link{plot_tree_ranks}}}
 }
 \value{
-
+a plot
 }
 \description{
 Plot the a phylogenetic tree showing amplifiable targets
 from data created from find_targets
+}
+\examples{
+display_tree(bsPrimerTree = blastoExample)
 }

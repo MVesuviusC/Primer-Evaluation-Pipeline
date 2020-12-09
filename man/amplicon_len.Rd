@@ -2,19 +2,27 @@
 % Please edit documentation in R/ampLen.R
 \name{amplicon_len}
 \alias{amplicon_len}
-\title{Title}
+\title{Get data on the distribution of amplicon lengths for the tested assay}
 \usage{
 amplicon_len(output_dir, target_taxa, target_level)
 }
 \arguments{
-\item{target_level}{}
+\item{output_dir}{character, directory to output intermediate files}
+
+\item{target_taxa}{character, taxonomic group targeted by the assay -
+needs to be one of "skpcofgs"}
+
+\item{target_level}{character, taxonomic level of the targeted taxa}
 }
 \value{
-
+A table with taxonomy and amplicon length data
 }
 \description{
-Title
+Get data on the distribution of amplicon lengths for the tested assay
 }
 \examples{
+amp_lens <- amplicon_len(output_dir = "output",
+                         target_taxa = "Blastocystis",
+                         target_level = "genus")
 
 }

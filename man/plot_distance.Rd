@@ -2,21 +2,26 @@
 % Please edit documentation in R/distance.R
 \name{plot_distance}
 \alias{plot_distance}
-\title{Title}
+\title{Plot genetic distance data between amplifiable sequences}
 \usage{
 plot_distance(
-  output_dir,
-  target_taxa,
-  target_level,
-  levels_to_use = c("family", "genus", "species")
+  bsPrimerTree,
+  levels_to_use = c("family", "genus", "species"),
+  target = "On-target"
 )
 }
 \arguments{
-\item{levels_to_use}{}
+\item{bsPrimerTree}{a bsPrimerTree object returned by
+\code{\link{eval_assay}}}
+
+\item{levels_to_use}{character, taxonomic levels to plot - needs
+to be one of "skpcofgs"}
+
+\item{target}{character, one of either On-target or Off-target}
 }
 \value{
 
 }
 \description{
-Title
+Plot genetic distance data between amplifiable sequences
 }

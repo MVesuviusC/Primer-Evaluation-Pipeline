@@ -10,43 +10,79 @@ eval_assay(
   target_taxa,
   target_level,
   assay_name,
-  blast_path = "blastn",
+  blast_exe = "blastn",
   blast_db = "nt",
   tax_db,
-  output_dir = "./output/",
+  output_dir = "./output",
   threads = 1,
+  banned_words = banned_word_list,
+  clean_up = FALSE,
   ...
 )
 }
 \arguments{
-\item{forward}{forward primer}
+\item{forward}{character, forward primer}
 
-\item{reverse}{reverse primer}
+\item{reverse}{character, reverse primer}
 
-\item{target_taxa}{taxa targeted by the assay - needs to be one of "skpcofgs"}
+\item{target_taxa}{character, taxonomic group targeted by the assay - needs
+to be one of "skpcofgs"}
 
-\item{target_level}{taxonomic level of the targeted taxa}
+\item{target_level}{character, taxonomic level of the targeted taxa}
 
-\item{assay_name}{name of the assay}
+\item{assay_name}{character, name of the assay}
 
-\item{blast_path}{path to blast version to use}
+\item{blast_exe}{character, path to blast version to use}
 
-\item{blast_db}{path to blast database}
+\item{blast_db}{character, path to blast database}
 
-\item{tax_db}{path to taxonomy database created with make_tax_db()}
+\item{tax_db}{character, path to taxonomy database created with
+\code{\link{make_tax_db}}}
 
-\item{output_dir}{directory to output intermediate files}
+\item{output_dir}{character, directory to output intermediate files}
 
-\item{threads}{number of processes to use}
+\item{threads}{numeric, number of processes to use}
+
+\item{banned_words}{list, a list of words used to identify sequences
+with uncertain taxonomy}
+
+\item{clean_up}{logical, if TRUE some of the unnecessary files will be
+removed at the end}
 
 \item{...}{other arguments}
 }
 \value{
-
+A bsPrimerTree object, which is a list with the following elements,
+\item{summary_table}{a list with summary metrics,
+  most easily accessed through summary()}
+\item{amplifiable}{A table of species that can be amplified by these primers}
+\item{amplifiable_on_target}{A table of on-target species that can be
+  amplified by these primers}
+\item{species_seqd_at_locus}{A table of species that have sequence available
+  in the blast nt database at this locus}
+\item{missed_species}{A table of species that cannot be amplified by these
+  primers}
+\item{known_species}{A table of all known species within target group}
+\item{species_unsequenced_at_locus}{A table of on-target species with no
+  available sequences in the nt database}
 }
 \description{
-Evaluate metabarcoding assay
+This function will take the provided information and evaluate the quality
+of data that would be generated for a metabarcoding experiment.
+}
+\details{
+Be aware that since this function uses blast, it may require a lot of
+ram (40G+).
 }
 \examples{
+
+test <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
+                   reverse = "TTGCCTCCAGCTTCCCTACA",
+                   output_dir = "testRun",
+                   tax_db = "taxonomy.db",
+                   assay_name = "testRun",
+                   target_taxa = "Blastocystis",
+                   target_level = "genus",
+                   threads = 4)
 
 }

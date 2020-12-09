@@ -2,16 +2,21 @@
 % Please edit documentation in R/primerMismatch.R
 \name{primer_mismatch_count}
 \alias{primer_mismatch_count}
-\title{Title}
+\title{Count primer nucleotide mismatches}
 \usage{
 primer_mismatch_count(output_dir, target_taxa, target_level)
 }
 \arguments{
-\item{target_level}{}
+\item{output_dir}{character, directory to output intermediate files}
+
+\item{target_taxa}{character, taxonomic group targeted by the assay - needs
+to be one of "skpcofgs"}
+
+\item{target_level}{character, taxonomic level of the targeted taxa}
 }
 \value{
-
+A table of primer mismatch data
 }
 \description{
-Title
+Count primer nucleotide mismatches
 }

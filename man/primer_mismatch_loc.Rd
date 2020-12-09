@@ -2,21 +2,21 @@
 % Please edit documentation in R/primerMismatch.R
 \name{primer_mismatch_loc}
 \alias{primer_mismatch_loc}
-\title{Title}
+\title{Find location of primer nucleotide mismatches}
 \usage{
 primer_mismatch_loc(output_dir, target_taxa, target_level)
 }
 \arguments{
-\item{target_level}{}
+\item{output_dir}{character, directory to output intermediate files}
+
+\item{target_taxa}{character, taxonomic group targeted by the assay -
+needs to be one of "skpcofgs"}
+
+\item{target_level}{character, taxonomic level of the targeted taxa}
 }
 \value{
-
+A table of primer mismatch location data
 }
 \description{
-Title
-}
-\examples{
-test <- primer_mismatch_loc(output_dir = "C:/Users/MattDellLaptop/Desktop/mam16SOut2/",
-                            target_taxa = "Mammalia",
-                            target_level = "class")
+Find location of primer nucleotide mismatches
 }

@@ -1,7 +1,7 @@
 #' Get data on the distribution of amplicon lengths for the tested assay
 #'
 #' @param output_dir character, directory to output intermediate files
-#' @param target_taxa character, taxonomic group targeted by the assay - 
+#' @param target_taxa character, taxonomic group targeted by the assay -
 #'   needs to be one of "skpcofgs"
 #' @param target_level character, taxonomic level of the targeted taxa
 #'
@@ -10,9 +10,9 @@
 #'
 #' @examples
 #' amp_lens <- amplicon_len(output_dir = "output",
-#'                          target_taxa = "Blastocystis", 
+#'                          target_taxa = "Blastocystis",
 #'                          target_level = "genus")
-#'                          
+#'
 amplicon_len <- function(output_dir, target_taxa, target_level) {
   # Pull in data
   amplicon_len_df <- read.delim(paste(output_dir,
@@ -29,36 +29,35 @@ amplicon_len <- function(output_dir, target_taxa, target_level) {
 
 #' Plot the distribution of amplicon lengths for the tested assay
 #'
-#'
-#' @param bsPrimerTree a bsPrimerTree object returned by 
+#' @param bsPrimerTree a bsPrimerTree object returned by
 #'   \code{\link{eval_assay}}
 #'
 #' @export
 #'
 #' @examples
 #' plot_amplicon_len(bsPrimerTree = blastoExample)
-#'                  
+#'
 plot_amplicon_len <- function(bsPrimerTree) {
-  output_dir = bsPrimerTree$summary_table$output_dir
-  target_taxa = bsPrimerTree$summary_table$target_taxa
-  target_level = bsPrimerTree$summary_table$target_level
-  
+  output_dir <- bsPrimerTree$summary_table$output_dir
+  target_taxa <- bsPrimerTree$summary_table$target_taxa
+  target_level <- bsPrimerTree$summary_table$target_level
+
   amplicon_df <- amplicon_len(output_dir, target_taxa, target_level)
 
-  print(ggplot2::ggplot(amplicon_df, ggplot2::aes(x = as.numeric(length), 
-                                                  y = count, 
+  print(ggplot2::ggplot(amplicon_df, ggplot2::aes(x = as.numeric(length),
+                                                  y = count,
                                                   fill = onTarget)) +
           ggplot2::geom_bar(stat = "identity") +
           ggplot2::ggtitle("Amplicon Lengths") +
           ggplot2::xlab("Amplicon Length (bp)") +
-          ggplot2::ylab("Count") + 
-          ggplot2::facet_wrap(~ onTarget, 
-                              ncol = 1, 
+          ggplot2::ylab("Count") +
+          ggplot2::facet_wrap(~ onTarget,
+                              ncol = 1,
                               scales = "free_y") +
           ggplot2::labs(fill = "On target") +
-          ggplot2::scale_x_continuous(breaks = round(seq(0, 
-                                                         max(amplicon_df$length), 
-                                                         by = 50), 
+          ggplot2::scale_x_continuous(breaks = round(seq(0,
+                                                         max(amplicon_df$length),
+                                                         by = 50),
                                                      1))
   )
 }
