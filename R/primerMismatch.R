@@ -1,14 +1,20 @@
-#' Title
+#' Count primer nucleotide mismatches
 #'
-#' @param output_dir
-#' @param target_taxa
-#' @param target_level
+#'
+#' @param output_dir character, directory to output intermediate files
+#' @param target_taxa character, taxonomic group targeted by the assay - needs 
+#' to be one of "skpcofgs"
+#' @param target_level character, taxonomic level of the targeted taxa
 #'
 #' @return
-#' @export
 #'
 #' @examples
+#' 
+#' test <- primer_mismatch_count(output_dir = "output",
+#'                               target_taxa = "Blastocystis", 
+#'                               target_level = "genus")
 primer_mismatch_count <- function(output_dir, target_taxa, target_level) {
+
   primer_mismatches <- read.delim(paste(output_dir,
                                        "/bsPrimerTreeOut/primerMismatches.txt",
                                        sep = ""),
@@ -32,20 +38,19 @@ primer_mismatch_count <- function(output_dir, target_taxa, target_level) {
   return(primer_mismatches)
 }
 
-#' Title
+#' Find location of primer nucleotide mismatches
 #'
-#' @param output_dir
-#' @param target_taxa
-#' @param target_level
+#'
+#' @param output_dir character, directory to output intermediate files
+#' @param target_taxa character, taxonomic group targeted by the assay - needs to be one of "skpcofgs"
+#' @param target_level character, taxonomic level of the targeted taxa
 #'
 #' @return
-#' @export
 #'
 #' @examples
-#' test <- primer_mismatch_loc(output_dir = "C:/Users/MattDellLaptop/Desktop/mam16SOut2/",
-#'                             target_taxa = "Mammalia",
-#'                             target_level = "class")
+#' test <- primer_mismatch_loc(bsPrimerTree = blastoExample)
 primer_mismatch_loc <- function(output_dir, target_taxa, target_level) {
+
   primer_mismatch_locs <- read.delim(paste(output_dir,
                                          "/bsPrimerTreeOut/primerMismatchLocs.txt",
                                          sep = ""),
@@ -71,31 +76,23 @@ primer_mismatch_loc <- function(output_dir, target_taxa, target_level) {
 }
 
 
-#' Title
+#' Plot primer nucleotide mismatch locations
 #'
-#' @param output_dir
-#' @param target_taxa
-#' @param target_level
-#' @param forward
-#' @param reverse
-#' @param target
+#' @param bsPrimerTree a bsPrimerTree object returned by \code{\link{eval_assay}}
+#' @param target either "On-target" or "Off-target" 
 #'
-#' @return
+#' @return a plot of mismatch locations
 #' @export
 #'
 #' @examples
-#' test2 <- plot_primer_mismatch_locs(forward = "CGGTTGGGGTGACCTCGGA",
-#'                                    reverse = "GCTGTTATCCCTAGGGTAACT",
-#'                                    output_dir = "C:/Users/MattDellLaptop/Desktop/mam16SOut2/",
-#'                                    target_taxa = "Mammalia",
-#'                                    target_level = "class")
-plot_primer_mismatch_locs <- function(forward, reverse, output_dir,
-                                      target_taxa, target_level,
-                                      target = "On-target") {
+#' test2 <- plot_primer_mismatch_locs(bsPrimerTree = blastoExample, 
+#'                                    target = "On-target")
+plot_primer_mismatch_locs <- function(bsPrimerTree, target = "On-target") {
+  
+  forward = bsPrimerTree$summary_table$primer_for
+  reverse = bsPrimerTree$summary_table$primer_rev
 
-  primer_mismatch_locs <- primer_mismatch_loc(output_dir = output_dir,
-                                               target_taxa = target_taxa,
-                                               target_level = target_level) %>%
+  primer_mismatch_locs <- primer_mismatch_loc(bsPrimerTree = bsPrimerTree) %>%
     dplyr::filter(OnTarget == target) %>%
     dplyr::filter(mismatchBase %in% c("A", "T", "G", "C", NA))
 
@@ -134,6 +131,6 @@ plot_primer_mismatch_locs <- function(forward, reverse, output_dir,
       gridExtra::grid.arrange(grobs = lapply(c("Forward", "Reverse"),
                                              plot_mismatch))
     } else {
-      warning("No data to plot for ", target, " ", primer)
+      warning("No data to plot for ", target, " ", primer, immediate. = TRUE)
     }
 }

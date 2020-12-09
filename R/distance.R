@@ -38,10 +38,14 @@ distance_data <- function(output_dir, target_taxa, target_level) {
 #' @export
 #'
 #' @examples
-plot_distance <- function(output_dir, target_taxa, target_level,
+plot_distance <- function(bsPrimerTree,
                           levels_to_use = c("family", "genus", "species"),
                           target = "On-target") {
 
+  output_dir = bsPrimerTree$summary_table$output_dir
+  target_taxa = bsPrimerTree$summary_table$target_taxa
+  target_level = bsPrimerTree$summary_table$target_level
+  
   distance_summary <- distance_data(output_dir = output_dir,
                                     target_taxa = target_taxa,
                                     target_level = target_level) %>%

@@ -32,6 +32,7 @@ use DBI;
 
 my $verbose;
 my $help;
+my $debug;
 my $threads = 1;
 my $inFile;
 my $outDir;
@@ -48,6 +49,7 @@ my $minTaxaToPlot = 20;
 # i = integer, s = string
 GetOptions ("verbose"             => \$verbose,
             "help"                => \$help,
+            "debug"               => \$debug,
       	    "threads=i"           => \$threads,
       	    "inFile=s"            => \$inFile,
       	    "outDir=s"            => \$outDir,
@@ -399,7 +401,7 @@ for my $taxid (keys %ampLenHash) {
 	    print $ampliconLenFH join("\t", $taxid, $length, $ampLenHash{$taxid}{$length}, $taxaHash{$taxid}), "\n";
 	}
     } else {
-	print STDERR "Taxa info for taxid ", $taxid, " not available during amplicon length file output\n";
+	print STDERR "Taxa info for taxid ", $taxid, " not available during amplicon length file output\n" if($debug);
     }
 }
 
@@ -580,7 +582,7 @@ if(!$noPlots) {
 }
 
 if($verbose) {
-    print STDERR "Done!!!!\n";
+    print STDERR "Done with primer search!!!!\n";
     my @time = localtime(time);
     print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }

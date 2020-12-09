@@ -1,13 +1,12 @@
 #' Get data on the distribution of amplicon lengths for the tested assay
 #'
-#' @param output_dir directory to output intermediate files
-#' @param target_taxa taxonomic group targeted by the assay - needs to be one of "skpcofgs"
-#' @param target_level taxonomic level of the targeted taxa
+#' @param output_dir character, directory to output intermediate files
+#' @param target_taxa character, taxonomic group targeted by the assay - 
+#'   needs to be one of "skpcofgs"
+#' @param target_level character, taxonomic level of the targeted taxa
 #'
 #' @return
-#' a dataframe with taxonomy and amplicon length data
-#' 
-#' @export
+#' A table with taxonomy and amplicon length data
 #'
 #' @examples
 #' amp_lens <- amplicon_len(output_dir = "output",
@@ -28,21 +27,22 @@ amplicon_len <- function(output_dir, target_taxa, target_level) {
   return(amplicon_len_df)
 }
 
-
 #' Plot the distribution of amplicon lengths for the tested assay
 #'
-#' @param output_dir directory to output intermediate files
-#' @param target_taxa taxonomic group targeted by the assay - needs to be one of "skpcofgs"
-#' @param target_level taxonomic level of the targeted taxa
+#'
+#' @param bsPrimerTree a bsPrimerTree object returned by 
+#'   \code{\link{eval_assay}}
 #'
 #' @export
 #'
 #' @examples
-#' plot_amplicon_len(output_dir = "output",
-#'                   target_taxa = "Blastocystis", 
-#'                  target_level = "genus")
+#' plot_amplicon_len(bsPrimerTree = blastoExample)
 #'                  
-plot_amplicon_len <- function(output_dir, target_taxa, target_level) {
+plot_amplicon_len <- function(bsPrimerTree) {
+  output_dir = bsPrimerTree$summary_table$output_dir
+  target_taxa = bsPrimerTree$summary_table$target_taxa
+  target_level = bsPrimerTree$summary_table$target_level
+  
   amplicon_df <- amplicon_len(output_dir, target_taxa, target_level)
 
   print(ggplot2::ggplot(amplicon_df, ggplot2::aes(x = as.numeric(length), 

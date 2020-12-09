@@ -86,3 +86,25 @@ list_on_target_amplifiable <- function(output_dir, target_taxa, target_level) {
 }
 
 
+#' Title
+#'
+#' @param output_dir 
+#' @param target_taxa 
+#' @param target_level 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+list_all_amplifiable <- function(output_dir, target_taxa, target_level) {
+  # get list of species amplified
+  bsPrimerTree_hits <- read.delim(paste(output_dir,
+                                        "/bsPrimerTreeOut/taxaCountSummary.txt",
+                                        sep = ""))
+  
+  # Get only on target hits
+  bsPrimerTree_hits <- bsPrimerTree_hits %>%
+    dplyr::select(-Count)
+  
+  return(bsPrimerTree_hits)
+}
