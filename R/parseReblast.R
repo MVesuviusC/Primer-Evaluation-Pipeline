@@ -51,9 +51,9 @@ tax_specificity <- function(output_dir, banned_words) {
                         "--input -")
   
   specificity_results <- system(find_top_cmd, intern = TRUE) %>%
-    tibble::as.tibble() %>% 
+    tibble::as_tibble() %>% 
     tidyr::separate(col = "value", sep = "\t", into = c("label", "data")) %>% 
-    pull(data, name = label)
+    dplyr::pull(data, name = label)
   
   return(specificity_results)
 }
@@ -93,7 +93,7 @@ potential_hits <- function(output_dir, target_taxa, target_level,
   col_names <- strsplit(potential_hit_data[1], split = "\t")
   
   potential_hit_df <- potential_hit_data[2:length(potential_hit_data)] %>%
-    tibble::as.tibble() %>% 
+    tibble::as_tibble() %>% 
     tidyr::separate(col = "value", sep = "\t", into = col_names[[1]], ) %>%
     dplyr::filter(get(target_level) == target_taxa)
 

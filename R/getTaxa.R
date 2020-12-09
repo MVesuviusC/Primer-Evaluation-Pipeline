@@ -25,7 +25,18 @@ get_taxa <- function(output_dir, tax_db) {
   system(get_taxa_cmd)
 }
 
-all_known_species <- function(target_taxa, target_level, tax_db) {
+#' Title
+#'
+#' @param target_taxa 
+#' @param target_level 
+#' @param tax_db 
+#' @param banned_words 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+all_known_species <- function(target_taxa, target_level, tax_db, banned_words) {
   
   #getTaxaLocal.pl --dbName ${taxonomyDb} --taxName ${targetTaxa},${targetLevel} > ${outDir}/couldHaveHit/knownSpecies.txt 
  
@@ -44,8 +55,9 @@ all_known_species <- function(target_taxa, target_level, tax_db) {
   col_names <- strsplit(tax_data[1], split = "\t")
   
   potential_hit_df <- tax_data[2:length(tax_data)] %>%
-    tibble::as.tibble() %>% 
-    tidyr::separate(col = "value", sep = "\t", into = col_names[[1]], )
+    tibble::as_tibble() %>% 
+    tidyr::separate(col = "value", sep = "\t", into = col_names[[1]], ) %>%
+    dplyr::filter(., grepl(banned_words, species) == FALSE)
   
   return(potential_hit_df)
 }

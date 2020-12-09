@@ -72,7 +72,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                  banned_words = banned_words)
     
     # Add amplicon length info to table
-    output$summary_table$median_on-target_amplicon_length <-
+    output$summary_table$median_on_target_amplicon_length <-
       amplicon_len(output_dir = output_dir,
                    target_taxa = target_taxa,
                    target_level = target_level) %>%
@@ -80,9 +80,10 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
       dplyr::pull(length) %>%
       median(na.rm = TRUE)
     
-    output$amplifiable <- list_on_target_amplifiable(output_dir = output_dir,
-                                                     target_taxa = target_taxa,
-                                                     target_level = target_level)
+    # List all species amplifiable?
+#    output$amplifiable <- list_on_target_amplifiable(output_dir = output_dir,
+#                                                     target_taxa = target_taxa,
+#                                                     target_level = target_level)
     
     # Get primer mismatch info
     output$summary_table$MeanOnTarget5PrimeMismatches <-
@@ -108,7 +109,8 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
     
     output$summary_table$speciesAmplifiableCount <- output$amplifiable_on_target %>%
       dplyr::pull(species) %>%
-      length(uniq(.))
+      unique() %>%
+      length()
     
     # Get info on distance between amplifiable targets
     output$summary_table$MeanOnTargetDistBetweenSeqsWithinEachGenus <-
@@ -145,7 +147,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
     
     # Get list of potentially amplifiable species 
     # - have locus sequence data available in NCBI
-    output$potentially_amplifiable <- potential_hits(output_dir = output_dir,
+    output$species_seqd_at_locus <- potential_hits(output_dir = output_dir,
                                                      target_taxa= target_taxa, 
                                                      target_level= target_level, 
                                                      forward = forward, 
@@ -155,39 +157,47 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
     # Calculate the percent of species amplifiable
     output$summary_table$PercentAmplifiable <- 
       (length(output$amplifiable_on_target$species) /
-      length(output$potentially_amplifiable$species)) * 100
+      length(output$species_seqd_at_locus$species)) * 100
     
-    output$missed_species <- output$potentially_amplifiable$species[
-      output$potentially_amplifiable$species %in% 
+    output$missed_species <- output$species_seqd_at_locus$species[
+      output$species_seqd_at_locus$species %in% 
       output$amplifiable_on_target$species]
     
     # Get list of all known taxa within target group
-    outtput$summary_table$species_in_database <- 
+    output$species_in_database <- 
       all_known_species(target_taxa = target_taxa, 
                         target_level = target_level, 
-                        tax_db = tax_db)
+                        tax_db = tax_db,
+                        banned_words = banned_words)
     
     # Calculate the percent of species with sequence for target locus
-    percent_known_species_seqd <- 
-      (length(output$potentially_amplifiable$species) /
+    output$summary_table$percent_known_species_seqd <- 
+      (length(output$species_seqd_at_locus$species) /
       length(output$species_in_database$species)) * 100
+
+    # List missed species
+    output$missed_species <- 
+      output$species_in_database[!output$species_in_database$species %in% 
+                                   output$amplifiable_on_target$species,]
     
+    # List unsequenced species
+    output$species_unsequenced_at_locus <- 
+      output$species_in_database[!output$species_in_database$species %in% 
+                                   output$species_in_database$species,]
     
     # Cleanup if I'm told to
     if(clean_up) {
       clean_up_cmd <- paste("rm ",
-                            output_dir, "/reblastResults.txt.gz", 
+                            output_dir, "/reblastResults.txt.gz ", 
+                            output_dir, "/taxonomy.txt",
                             sep = "")
       system(clean_up_cmd)
     }
     
-    # List missed species
-    
-    
-    # List unsequenced species
     
   }
   class(output) <- "bsPrimerTree"
+  return(output)
 }
 
 
@@ -199,7 +209,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
 #'
 #' @examples
 #'
-check_depends <- function(blast_path) {
+check_depends <- function(blast_path = "blastn") {
   # c("blastn", "blastdbcmd", "mafft", "perl", "getTaxa.pl")
 
   missing_dependency <- FALSE
