@@ -13,7 +13,8 @@ find_targets(
   tax_db,
   threads,
   output_dir,
-  banned_words
+  banned_words,
+  max_aligned_seqs
 )
 }
 \arguments{
@@ -21,7 +22,7 @@ find_targets(
 
 \item{reverse}{reverse primer}
 
-\item{assay_name}{}
+\item{assay_name}{name of the assay}
 
 \item{blast_path}{path to blast version to use}
 
@@ -32,6 +33,12 @@ find_targets(
 \item{threads}{number of threads to use}
 
 \item{output_dir}{directory to write the files out to}
+
+\item{banned_words}{list, a list of words used to identify sequences
+with uncertain taxonomy}
+
+\item{max_aligned_seqs}{Maximum number of sequences to keep for alignment
+and data processing}
 }
 \value{
 none

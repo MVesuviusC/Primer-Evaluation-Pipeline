@@ -7,12 +7,17 @@
 #' @param tax_db path to taxonomy database created with make_tax_db()
 #' @param threads number of threads to use
 #' @param output_dir directory to write the files out to
-#' @param assay_name
+#' @param assay_name name of the assay
+#' @param banned_words list, a list of words used to identify sequences
+#'   with uncertain taxonomy
+#' @param max_aligned_seqs Maximum number of sequences to keep for alignment
+#'  and data processing
 #'
 #' @return none
 #'
 find_targets <- function(forward, reverse, assay_name, blast_path, blast_db,
-                         tax_db, threads, output_dir, banned_words) {
+                         tax_db, threads, output_dir, banned_words,
+                         max_aligned_seqs) {
 
   package_dir <- find.package("bsPrimerTree")
 
@@ -46,7 +51,7 @@ find_targets <- function(forward, reverse, assay_name, blast_path, blast_db,
                             "--outDir", out_path,
                             "--threads", threads,
                             "--maxSeqsPerSpecies 4",
-                            "--maxAlignedSeqs 5000",
+                            "--maxAlignedSeqs", max_aligned_seqs,
                             "--verbose",
                             "--bannedWords", banned_words_with_quotes,
                             sep = " ")
@@ -57,49 +62,82 @@ find_targets <- function(forward, reverse, assay_name, blast_path, blast_db,
 
 }
 
+#' Load results from find_targets into output
+#'
+#' @param bsPrimerTree a bsPrimerTree object returned by
+#'   \code{\link{eval_assay}}
+#' @param output_dir character, directory to output intermediate files
+#'
+#' @return a list
+#'
+load_find_target_data <- function(bsPrimerTree, output_dir) {
+  target_taxa <- bsPrimerTree$summary_table$target_taxa
+  target_level <- bsPrimerTree$summary_table$target_level
+
+  read_data <- function(in_file) {
+    read.delim(paste(output_dir,
+                     "/bsPrimerTreeOut/",
+                     in_file,
+                     sep = ""),
+               stringsAsFactors = FALSE,
+               comment.char = "#")
+  }
+
+  x$amplicon_lengths <- read_data("ampliconLengths.txt")
+
+  x$distance_summary <- read_data("distanceSummary.txt")
+
+  x$gi_taxonomy <- read_data("giTaxonomyFile.txt")
+
+  x$primer_mismatches <-
+    primer_mismatch_count(read_data("primerMismatches.txt"),
+                          target_taxa = target_taxa,
+                          target_level = target_level)
+
+  x$primer_mismatch_locs <-
+    primer_mismatch_loc(read_data("primerMismatchLocs.txt"),
+                        target_taxa = target_taxa,
+                        target_level = target_level)
+
+  x$taxa_count_summary <- read_data("taxaCountSummary")
+
+  x$alignment <- ape::read.dna(paste(output_dir,
+                                     "/bsPrimerTreeOut/",
+                                     sep = ""), format = "fasta")
+
+  x$tree <- ape::read.tree(paste(output_dir,
+                                "/bsPrimerTreeOut/tree.nwk",
+                                sep = ""))
+}
+
 #' List on-target amplifiable species
 #'
-#' @param output_dir character, directory to output intermediate files
-#' @param target_taxa character, taxonomic group targeted by the assay - needs
-#'   to be one of "skpcofgs"
-#' @param target_level character, taxonomic level of the targeted taxa
+#' @param bsPrimerTree a bsPrimerTree object returned by
+#'   \code{\link{eval_assay}}
 #'
 #' @return a table of taxonomic data
 #'
-list_on_target_amplifiable <- function(output_dir, target_taxa, target_level) {
-  # get list of species amplified
-  bsPrimerTree_hits <- read.delim(paste(output_dir,
-                                        "/bsPrimerTreeOut/taxaCountSummary.txt",
-                                        sep = ""))
+list_on_target_amplifiable <- function(bsPrimerTree) {
+  target_taxa <- bsPrimerTree$summary_table$target_taxa
+  target_level <- bsPrimerTree$summary_table$target_level
 
   # Get only on target hits
-  bsPrimerTree_hits <- bsPrimerTree_hits %>%
+  bsPrimerTree_hits <- bsPrimerTree$taxa_count_summary %>%
     dplyr::filter(get(target_level) == target_taxa) %>%
     dplyr::select(-Count)
-
-  return(bsPrimerTree_hits)
 }
 
 #' List all amplifiable species
 #'
-#' @param output_dir character, directory to output intermediate files
-#' @param target_taxa character, taxonomic group targeted by the assay - needs
-#'   to be one of "skpcofgs"
-#' @param target_level character, taxonomic level of the targeted taxa
+#' @param bsPrimerTree a bsPrimerTree object returned by
+#'   \code{\link{eval_assay}}
 #'
 #' @return A table of taxonomic data
 #'
-list_all_amplifiable <- function(output_dir, target_taxa, target_level) {
-  # get list of species amplified
-  bsPrimerTree_hits <- read.delim(paste(output_dir,
-                                        "/bsPrimerTreeOut/taxaCountSummary.txt",
-                                        sep = ""))
-
-  # Get only on target hits
-  bsPrimerTree_hits <- bsPrimerTree_hits %>%
+list_all_amplifiable <- function(bsPrimerTree) {
+  # Get all hits
+  bsPrimerTree_hits <- bsPrimerTree$taxa_count_summary %>%
     dplyr::select(-Count)
-
-  return(bsPrimerTree_hits)
 }
 
 #' List all known species within target taxonomic group
@@ -132,6 +170,4 @@ all_known_species <- function(target_taxa, target_level, tax_db, banned_words) {
     tibble::as_tibble() %>%
     tidyr::separate(col = "value", sep = "\t", into = col_names[[1]], ) %>%
     dplyr::filter(., grepl(banned_words, species) == FALSE)
-
-  return(potential_hit_df)
 }

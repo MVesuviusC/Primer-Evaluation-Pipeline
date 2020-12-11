@@ -13,10 +13,11 @@ eval_assay(
   blast_exe = "blastn",
   blast_db = "nt",
   tax_db,
-  output_dir = "./output",
+  output_dir = paste(tempdir(), "/", random_alphanumeric(20), sep = ""),
   threads = 1,
   banned_words = banned_word_list,
-  clean_up = FALSE,
+  max_aligned_seqs = 5000,
+  clean_up = TRUE,
   ...
 )
 }
@@ -46,8 +47,10 @@ to be one of "skpcofgs"}
 \item{banned_words}{list, a list of words used to identify sequences
 with uncertain taxonomy}
 
-\item{clean_up}{logical, if TRUE some of the unnecessary files will be
-removed at the end}
+\item{max_aligned_seqs}{Maximum number of sequences to keep for alignment
+and data processing}
+
+\item{clean_up}{logical, if TRUE, intermediate files will be removed}
 
 \item{...}{other arguments}
 }

@@ -13,24 +13,12 @@
 #' display_tree(bsPrimerTree = blasto_example)
 #' }
 display_tree <- function(bsPrimerTree, ...) {
-  output_dir <- bsPrimerTree$summary_table$output_dir
-
-  # Get taxa info
-  gi_tax_df <- read.delim(paste(output_dir,
-                                "/bsPrimerTreeOut/giTaxonomyFile.txt",
-                                sep = ""),
-                          header = TRUE)
-
-  tree_data <- ape::read.tree(paste(output_dir,
-                               "/bsPrimerTreeOut/tree.nwk",
-                               sep = ""))
-
   # need to trim the taxonomy data off of the tree labels
   # this data is kept because it is used in other parts of the analysis
   tree_data$tip.label <- gsub(":.+", "", tree_data$tip.label)
 
-  print(primerTree::plot_tree_ranks(tree = tree_data,
-                                    taxonomy = gi_tax_df,
+  print(primerTree::plot_tree_ranks(tree = bsPrimerTree$tree,
+                                    taxonomy = bsPrimerTree$gi_taxonomy,
                                     ...))
 }
 
@@ -47,18 +35,10 @@ display_tree <- function(bsPrimerTree, ...) {
 #' display_wordcloud(bsPrimerTree = blasto_example)
 #' }
 display_wordcloud <- function(bsPrimerTree) {
-  output_dir <- bsPrimerTree$summary_table$output_dir
   target_taxa <- bsPrimerTree$summary_table$target_taxa
   target_level <- bsPrimerTree$summary_table$target_level
 
-  # Get taxa info
-  tax_summary <- read.delim(paste(output_dir,
-                                "/bsPrimerTreeOut/taxaCountSummary.txt",
-                                sep = ""),
-                          header = TRUE,
-                          stringsAsFactors = FALSE)
-
-  for_cloud <- tax_summary %>%
+  for_cloud <- bsPrimerTree$taxa_count_summary %>%
     dplyr::mutate(., Count = 1,
                   onTarget = dplyr::if_else(get(target_level) == !! target_taxa,
                                             "On-target",

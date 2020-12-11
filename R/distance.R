@@ -1,16 +1,13 @@
 #' Get genetic distance data on amplifiable sequences
 #'
-#' @param output_dir character, directory to output intermediate files
+#' @param distance Distance table from bsPrimerTree.pl
 #' @param target_taxa character, taxonomic group targeted by the assay - needs
 #'   to be one of "skpcofgs"
 #' @param target_level character, taxonomic level of the targeted taxa
 #'
-#' @return A table of taxa and distance data
+#' @return A summary table of taxa and distance data
 #'
-distance_data <- function(output_dir, target_taxa, target_level) {
-  distance <- read.delim(paste(output_dir,
-                               "/bsPrimerTreeOut/distanceSummary.txt",
-                               sep = ""))
+distance_data <- function(distance, target_taxa, target_level) {
 
   distance$OnTarget <- "Off-target"
   distance$OnTarget[grepl(target_taxa, distance[[target_level]])] <- "On-target"
@@ -20,8 +17,6 @@ distance_data <- function(output_dir, target_taxa, target_level) {
     dplyr::mutate(., LevelAverage =
                     sum(MeanDist * nCompared) / sum(nCompared)) %>%
     dplyr::ungroup()
-
-  return(distance_summary)
 }
 
 #' Plot genetic distance data between amplifiable sequences
@@ -32,25 +27,24 @@ distance_data <- function(output_dir, target_taxa, target_level) {
 #'   to be one of "skpcofgs"
 #' @param target character, one of either On-target or Off-target
 #'
-#' @return
+#' @return a plot
 #' @export
 #'
 #' @examples
+#' \dontrun{
+#' plot_distance(blasto_example)
+#' }
 plot_distance <- function(bsPrimerTree,
                           levels_to_use = c("family", "genus", "species"),
                           target = "On-target") {
-  output_dir <- bsPrimerTree$summary_table$output_dir
   target_taxa <- bsPrimerTree$summary_table$target_taxa
   target_level <- bsPrimerTree$summary_table$target_level
 
-  distance_summary <- distance_data(output_dir = output_dir,
-                                    target_taxa = target_taxa,
-                                    target_level = target_level) %>%
-    dplyr::filter(OnTarget == target)
-
-
   plot_dist <- function(level_in_use) {
-    distance_summary %>%
+    distance_data(bsPrimerTree$distance_summary,
+                  target_taxa = target_taxa,
+                  target_level = target_level) %>%
+      dplyr::filter(OnTarget == target) %>%
       dplyr::filter(CompLevel == level_in_use) %>%
       ggplot2::ggplot(., ggplot2::aes(x = MeanDist,
                                       fill = OnTarget)) +
@@ -60,7 +54,7 @@ plot_distance <- function(bsPrimerTree,
                              target)) +
       ggplot2::xlab("") +
       ggplot2::theme(legend.position = "none",
-                       plot.title = ggplot2::element_text(hjust = 0.5))
+                     plot.title = ggplot2::element_text(hjust = 0.5))
   }
 
   gridExtra::grid.arrange(grobs = lapply(levels_to_use, plot_dist))

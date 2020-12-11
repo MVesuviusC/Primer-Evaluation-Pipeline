@@ -4,10 +4,10 @@
 \alias{distance_data}
 \title{Get genetic distance data on amplifiable sequences}
 \usage{
-distance_data(output_dir, target_taxa, target_level)
+distance_data(distance, target_taxa, target_level)
 }
 \arguments{
-\item{output_dir}{character, directory to output intermediate files}
+\item{distance}{Distance table from bsPrimerTree.pl}
 
 \item{target_taxa}{character, taxonomic group targeted by the assay - needs
 to be one of "skpcofgs"}
@@ -15,7 +15,7 @@ to be one of "skpcofgs"}
 \item{target_level}{character, taxonomic level of the targeted taxa}
 }
 \value{
-A table of taxa and distance data
+A summary table of taxa and distance data
 }
 \description{
 Get genetic distance data on amplifiable sequences

@@ -21,8 +21,9 @@
 #' @param assay_name character, name of the assay
 #' @param banned_words list, a list of words used to identify sequences
 #'   with uncertain taxonomy
-#' @param clean_up logical, if TRUE some of the unnecessary files will be
-#'   removed at the end
+#' @param max_aligned_seqs Maximum number of sequences to keep for alignment
+#'  and data processing
+#' @param clean_up logical, if TRUE, intermediate files will be removed
 #' @param ... other arguments
 #'
 #' @return A bsPrimerTree object, which is a list with the following elements,
@@ -54,8 +55,12 @@
 #' }
 eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                        blast_exe = "blastn", blast_db = "nt", tax_db,
-                       output_dir = "./output", threads = 1,
-                       banned_words = banned_word_list, clean_up = FALSE, ...) {
+                       output_dir = paste(tempdir(),
+                                          "/",
+                                          random_alphanumeric(20),
+                                          sep = ""),
+                       threads = 1, banned_words = banned_word_list,
+                       max_aligned_seqs = 5000, clean_up = TRUE, ...) {
   # Output
   output <- list()
 
@@ -72,7 +77,6 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
 
   # Set up output summary table
   output$summary_table <- list(assay_name = assay_name,
-                               output_dir = output_dir,
                                primer_for = forward,
                                primer_rev = reverse,
                                target_taxa = target_taxa,
@@ -94,38 +98,35 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                  tax_db = tax_db,
                  threads = threads,
                  output_dir = output_dir,
-                 banned_words = banned_words)
+                 banned_words = banned_words,
+                 max_aligned_seqs = max_aligned_seqs)
 
-    # Add amplicon length info to table
+    # Load the files written out by bsPrimerTree into the output object
+    output <- load_find_target_data(bsPrimerTree = output,
+                                    output_dir = output_dir)
+
+    # Add amplicon length info to summary table
     output$summary_table$MedianOnTargetAmpliconLength <-
-      amplicon_len(output_dir = output_dir,
-                   target_taxa = target_taxa,
-                   target_level = target_level) %>%
+      output$amplicon_length %>%
       dplyr::filter(onTarget == TRUE) %>%
       dplyr::pull(length) %>%
       median(na.rm = TRUE)
 
-    # Get primer mismatch info
+    # Add primer mismatch info to summary table
     output$summary_table$MeanOnTarget5PrimeMismatches <-
-      primer_mismatch_count(output_dir = output_dir,
-                            target_taxa = target_taxa,
-                            target_level = target_level) %>%
+      output$primer_mismatches %>%
       dplyr::filter(OnTarget == "On-target") %>%
       dplyr::pull(mismatch5Prime) %>%
       mean()
 
     output$summary_table$MeanOnTargetTotalMismatches <-
-      primer_mismatch_count(output_dir = output_dir,
-                            target_taxa = target_taxa,
-                            target_level = target_level) %>%
+      output$primer_mismatch_count %>%
       dplyr::filter(OnTarget == "On-target") %>%
       dplyr::pull(mismatchTotal) %>%
       mean()
 
     # List all species amplifiable
-    output$amplifiable <- list_all_amplifiable(output_dir = output_dir,
-                                               target_taxa = target_taxa,
-                                               target_level = target_level)
+    output$amplifiable <- list_all_amplifiable(output)
 
     # Count of all species that are amplifiable
     output$summary_table$AllSpeciesAmplifiableCount <-
@@ -135,10 +136,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
       length()
 
     # Get list of on-target amplifiable targets
-    output$AmplifiableOnTarget <-
-      list_on_target_amplifiable(output_dir = output_dir,
-                                 target_taxa = target_taxa,
-                                 target_level = target_level)
+    output$AmplifiableOnTarget <- list_on_target_amplifiable(output)
 
     # Count of on-target species that are amplifiable
     output$summary_table$OnTargetSpeciesAmplifiableCount <-
@@ -155,7 +153,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
     # Get info on distance between amplifiable targets
     ## Genus
     output$summary_table$MeanOnTargetDistBetweenSeqsWithinEachGenus <-
-      distance_data(output_dir = output_dir,
+      distance_data(output$distance_summary,
                     target_taxa = target_taxa,
                     target_level = target_level) %>%
       dplyr::filter(OnTarget == "On-target", CompLevel == "genus") %>%
@@ -164,9 +162,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
 
     ## Species
     output$summary_table$MeanOnTargetDistBetweenSeqsWithinEachSpecies <-
-      distance_data(output_dir = output_dir,
-                    target_taxa = target_taxa,
-                    target_level = target_level) %>%
+      distance_data(output$distance_summary) %>%
       dplyr::filter(OnTarget == "On-target", CompLevel == "species") %>%
       dplyr::pull(LevelAverage) %>%
       head(n = 1)
@@ -228,10 +224,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
     if (clean_up) {
       message("Cleaning up some files")
       clean_up_cmd <- paste("rm ",
-                            output_dir, "/reblastResults.txt.gz ",
-                            output_dir, "/taxonomy.txt",
-                            output_dir, "bsPrimerTreeOut/seqsWithTaxaAligned.fasta",
-                            output_dir, "bsPrimerTreeOut/seqsWithTaxa.fasta",
+                            output_dir, "/*",
                             sep = "")
       system(clean_up_cmd)
     }
@@ -303,7 +296,7 @@ check_depends <- function(blast_exe = "blastn") {
 
     missing_dependency <- TRUE
   }
-  return(missing_dependency)
+  missing_dependency
 }
 
 
@@ -311,7 +304,7 @@ check_depends <- function(blast_exe = "blastn") {
 #'
 #' @param object A bsPrimerTree object
 #'
-#' @return A table of summary data from \code{\link{eval_assay}}
+#' @return A bsPrimerTree object from \code{\link{eval_assay}}
 #' @export
 #'
 #' @examples
@@ -333,7 +326,6 @@ summary.bsPrimerTree <- function(object) {
     dplyr::relocate(Label) %>%
     dplyr::relocate(Description, .after = last_col())
 
-  return(summary_output)
 }
 
 # This is a list of words that are used to exclude results

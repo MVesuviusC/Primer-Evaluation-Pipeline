@@ -4,15 +4,11 @@
 \alias{list_all_amplifiable}
 \title{List all amplifiable species}
 \usage{
-list_all_amplifiable(output_dir, target_taxa, target_level)
+list_all_amplifiable(bsPrimerTree)
 }
 \arguments{
-\item{output_dir}{character, directory to output intermediate files}
-
-\item{target_taxa}{character, taxonomic group targeted by the assay - needs
-to be one of "skpcofgs"}
-
-\item{target_level}{character, taxonomic level of the targeted taxa}
+\item{bsPrimerTree}{a bsPrimerTree object returned by
+\code{\link{eval_assay}}}
 }
 \value{
 A table of taxonomic data

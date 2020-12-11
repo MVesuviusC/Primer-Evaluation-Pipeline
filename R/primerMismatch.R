@@ -1,70 +1,55 @@
-#' Count primer nucleotide mismatches
+#' Add info to primer nucleotide mismatches table
 #'
-#' @param output_dir character, directory to output intermediate files
-#' @param target_taxa character, taxonomic group targeted by the assay - needs
-#' to be one of "skpcofgs"
-#' @param target_level character, taxonomic level of the targeted taxa
+#' @param mismatch_data mismatch data output by bsPrimerTree.pl
+#' @param target_taxa
+#' @param target_level
 #'
 #' @return A table of primer mismatch data
 #'
-primer_mismatch_count <- function(output_dir, target_taxa, target_level) {
-  primer_mismatches <- read.delim(paste(output_dir,
-                                       "/bsPrimerTreeOut/primerMismatches.txt",
-                                       sep = ""),
-                                 stringsAsFactors = FALSE,
-                                 header = TRUE)
-
+primer_mismatch_count <- function(mismatch_data, target_taxa, target_level) {
   # Make forward and reverse better
-  primer_mismatches$direction <- gsub("for",
+  mismatch_data$direction <- gsub("for",
                                       "Forward",
-                                      primer_mismatches$direction)
-  primer_mismatches$direction <- gsub("rev",
+                                      mismatch_data$direction)
+  mismatch_data$direction <- gsub("rev",
                                       "Reverse",
-                                      primer_mismatches$direction)
+                                      mismatch_data$direction)
 
   # Designate on/off-target
-  primer_mismatches$OnTarget <- "Off-target"
-  primer_mismatches$OnTarget[grepl(target_taxa,
-                                   primer_mismatches[[target_level]])
+  mismatch_data$OnTarget <- "Off-target"
+  mismatch_data$OnTarget[grepl(target_taxa,
+                                   mismatch_data[[target_level]])
                              ] <- "On-target"
 
-  return(primer_mismatches)
+  mismatch_data
 }
 
-#' Find location of primer nucleotide mismatches
+#' Add info to location of primer nucleotide mismatches table
 #'
-#' @param output_dir character, directory to output intermediate files
-#' @param target_taxa character, taxonomic group targeted by the assay -
-#'   needs to be one of "skpcofgs"
+#' @param mismatch_locs Primer mismatch location data from bsPrimerTree.pl
+#' @param target_taxa character, taxonomic group targeted by the assay - needs
+#'   to be one of "skpcofgs"
 #' @param target_level character, taxonomic level of the targeted taxa
 #'
 #' @return A table of primer mismatch location data
 #'
-primer_mismatch_loc <- function(output_dir, target_taxa, target_level) {
-  primer_mismatch_locs <- read.delim(paste(output_dir,
-                                           "/bsPrimerTreeOut/primerMismatchLocs.txt",
-                                           sep = ""),
-                                   stringsAsFactors = FALSE,
-                                   comment.char = "#",
-                                   header = TRUE)
-
+primer_mismatch_loc <- function(mismatch_locs, target_taxa, target_level) {
   # Make forward and reverse better
-  primer_mismatch_locs$direction <- gsub("for",
+  mismatch_locs$direction <- gsub("for",
                                        "Forward",
-                                       primer_mismatch_locs$direction)
-  primer_mismatch_locs$direction <- gsub("rev",
+                                       mismatch_locs$direction)
+  mismatch_locs$direction <- gsub("rev",
                                        "Reverse",
-                                       primer_mismatch_locs$direction)
+                                       mismatch_locs$direction)
 
   # Designate on/off-target
-  primer_mismatch_locs$OnTarget <- "Off-target"
-  primer_mismatch_locs$OnTarget[grepl(target_taxa,
-                                      primer_mismatch_locs[[target_level]])] <-
+  mismatch_locs$OnTarget <- "Off-target"
+  mismatch_locs$OnTarget[grepl(target_taxa,
+                                      mismatch_locs[[target_level]])] <-
     "On-target"
 
-  return(primer_mismatch_locs)
+  mismatch_locs
 }
-
 
 #' Plot primer nucleotide mismatch locations
 #'
@@ -83,16 +68,6 @@ primer_mismatch_loc <- function(output_dir, target_taxa, target_level) {
 plot_primer_mismatch_locs <- function(bsPrimerTree, target = "On-target") {
   forward <- bsPrimerTree$summary_table$primer_for
   reverse <- bsPrimerTree$summary_table$primer_rev
-  output_dir <- bsPrimerTree$summary_table$output_dir
-  target_taxa <- bsPrimerTree$summary_table$target_taxa
-  target_level <- bsPrimerTree$summary_table$target_level
-
-
-  primer_mismatch_locs <- primer_mismatch_loc(output_dir = output_dir,
-                                              target_taxa = target_taxa,
-                                              target_level = target_level) %>%
-    dplyr::filter(OnTarget == target) %>%
-    dplyr::filter(mismatchBase %in% c("A", "T", "G", "C", NA))
 
   # Make named list of primers to use as labels on figures
   Forward <- rev(strsplit(as.character(forward), split = "")[[1]])
@@ -102,7 +77,9 @@ plot_primer_mismatch_locs <- function(bsPrimerTree, target = "On-target") {
   names(Reverse) <- seq_len(length(Reverse))
 
   plot_mismatch <- function(primer) {
-    mismatch_plot <- primer_mismatch_locs %>%
+    mismatch_plot <- bsPrimerTree$primer_mismatch_locs %>%
+      dplyr::filter(OnTarget == target) %>%
+      dplyr::filter(mismatchBase %in% c("A", "T", "G", "C", NA)) %>%
         dplyr::filter(direction == primer) %>%
         dplyr::mutate(taxCount = length(unique(taxid))) %>%
         ggplot2::ggplot(., ggplot2::aes(x = mismatchLoc,
@@ -123,12 +100,6 @@ plot_primer_mismatch_locs <- function(bsPrimerTree, target = "On-target") {
                                  breaks = seq_len(length(get(primer))),
                                  labels = get(primer))
   }
-
-    # only create plot if there is data to use
-    if (nrow(primer_mismatch_locs) > 0) {
-      gridExtra::grid.arrange(grobs = lapply(c("Forward", "Reverse"),
-                                             plot_mismatch))
-    } else {
-      warning("No data to plot for ", target, immediate. = TRUE)
-    }
+  gridExtra::grid.arrange(grobs = lapply(c("Forward", "Reverse"),
+                                         plot_mismatch))
 }

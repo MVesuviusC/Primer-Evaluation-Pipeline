@@ -10,7 +10,7 @@
 \item{object}{A bsPrimerTree object}
 }
 \value{
-A table of summary data from \code{\link{eval_assay}}
+A bsPrimerTree object from \code{\link{eval_assay}}
 }
 \description{
 Summarize bsPrimerTree object

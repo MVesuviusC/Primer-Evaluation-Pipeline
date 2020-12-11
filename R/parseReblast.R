@@ -54,8 +54,6 @@ tax_specificity <- function(output_dir, banned_words) {
     tibble::as_tibble() %>%
     tidyr::separate(col = "value", sep = "\t", into = c("label", "data")) %>%
     dplyr::pull(data, name = label)
-
-  return(specificity_results)
 }
 
 #' Find sequences that could have been amplified
@@ -97,6 +95,4 @@ potential_hits <- function(output_dir, target_taxa, target_level,
     tibble::as_tibble() %>%
     tidyr::separate(col = "value", sep = "\t", into = col_names[[1]], ) %>%
     dplyr::filter(get(target_level) == target_taxa)
-
-  return(potential_hit_df)
 }

@@ -20,8 +20,13 @@ to be one of "skpcofgs"}
 \item{target}{character, one of either On-target or Off-target}
 }
 \value{
-
+a plot
 }
 \description{
 Plot genetic distance data between amplifiable sequences
+}
+\examples{
+\dontrun{
+plot_distance(blasto_example)
+}
 }

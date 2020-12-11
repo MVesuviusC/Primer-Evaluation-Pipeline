@@ -1,27 +1,3 @@
-#' Get data on the distribution of amplicon lengths for the tested assay
-#'
-#' @param output_dir character, directory to output intermediate files
-#' @param target_taxa character, taxonomic group targeted by the assay -
-#'   needs to be one of "skpcofgs"
-#' @param target_level character, taxonomic level of the targeted taxa
-#'
-#' @return
-#' A table with taxonomy and amplicon length data
-#'
-amplicon_len <- function(output_dir, target_taxa, target_level) {
-  # Pull in data
-  amplicon_len_df <- read.delim(paste(output_dir,
-                                      "/bsPrimerTreeOut/ampliconLengths.txt",
-                                      sep = ""),
-                                header = TRUE)
-
-  # Mark which hits are on-target
-  amplicon_len_df$onTarget <- grepl(target_taxa,
-                                    amplicon_len_df[[target_level]])
-
-  return(amplicon_len_df)
-}
-
 #' Plot the distribution of amplicon lengths for the tested assay
 #'
 #' @param bsPrimerTree a bsPrimerTree object returned by
@@ -34,15 +10,10 @@ amplicon_len <- function(output_dir, target_taxa, target_level) {
 #' plot_amplicon_len(bsPrimerTree = blasto_example)
 #' }
 plot_amplicon_len <- function(bsPrimerTree) {
-  output_dir <- bsPrimerTree$summary_table$output_dir
-  target_taxa <- bsPrimerTree$summary_table$target_taxa
-  target_level <- bsPrimerTree$summary_table$target_level
-
-  amplicon_df <- amplicon_len(output_dir, target_taxa, target_level)
-
-  print(ggplot2::ggplot(amplicon_df, ggplot2::aes(x = as.numeric(length),
-                                                  y = count,
-                                                  fill = onTarget)) +
+  print(ggplot2::ggplot(bsPrimerTree$amplicon_lengths,
+                        ggplot2::aes(x = as.numeric(length),
+                                     y = count,
+                                     fill = onTarget)) +
           ggplot2::geom_bar(stat = "identity") +
           ggplot2::ggtitle("Amplicon Lengths") +
           ggplot2::xlab("Amplicon Length (bp)") +
