@@ -1,0 +1,24 @@
+Label	Description
+assay_name	Name of the assay
+primer_for	Forward primer sequence
+primer_rev	Reverse primer sequence
+target_level	Taxonomic level of target group
+target_taxa	Taxonomic name of target group
+MedianOnTargetAmpliconLength	Median amplicon length for sequeces within the target group
+MeanOnTarget5PrimeMismatches	Average number of mismatches between the primer and template in the 5' end (5bp) for each primer
+MeanOnTargetTotalMismatches	Average number of mismatches between the primer and template for each primer
+OnTargetSpeciesAmplifiableCount	Number of on-target sequences predicted to be amplifiable
+AllSpeciesAmplifiableCount	Total number of amplifiable species
+AmplifiablePercentOnTarget	Percent of amplifiable sequences that are from the target group
+PercentSeqsSingleBestMatch_Family	Percent of amplifiable sequences unambiguously assigned to a single family
+PercentSeqsSingleBestMatch_Genus	Percent of amplifiable sequences unambiguously assigned to a single genus
+PercentSeqsSingleBestMatch_Order	Percent of amplifiable sequences unambiguously assigned to a single order
+PercentSeqsSingleBestMatch_Species	Percent of amplifiable sequences unambiguously assigned to a single species
+MeanNumTaxaMatchingSeq_Family	"For each amplifiable sequence, the average number of families with sequences that are identical"
+MeanNumTaxaMatchingSeq_Genus	"For each amplifiable sequence, the average number of genera with sequences that are identical"
+MeanNumTaxaMatchingSeq_Order	"For each amplifiable sequence, the average number of orders with sequences that are identical"
+MeanNumTaxaMatchingSeq_Species	"For each amplifiable sequence, the average number of species with sequences that are identical"
+MeanOnTargetDistBetweenSeqsWithinEachGenus	Average genetic distance between amplicon sequences when grouped at the genus level. 
+MeanOnTargetDistBetweenSeqsWithinEachSpecies	Average genetic distance between amplicon sequences when grouped at the species level. 
+PercentKnownSpeciesSeqd	Percent of species within target group that have sequences within the nt database at the amplified locus
+banned_words	List of words that are used to filter out sequences with uncertain taxonomy

@@ -7,7 +7,6 @@
 #'
 #' @return A table of taxa and distance data
 #'
-#' @examples
 distance_data <- function(output_dir, target_taxa, target_level) {
   distance <- read.delim(paste(output_dir,
                                "/bsPrimerTreeOut/distanceSummary.txt",

@@ -14,6 +14,7 @@ plot_amplicon_len(bsPrimerTree)
 Plot the distribution of amplicon lengths for the tested assay
 }
 \examples{
-plot_amplicon_len(bsPrimerTree = blastoExample)
-
+\dontrun{
+plot_amplicon_len(bsPrimerTree = blasto_example)
+}
 }

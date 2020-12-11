@@ -9,14 +9,14 @@
 #' https://github.com/MVesuviusC/getTaxa
 #'
 #' @param output_dir character, directory to output intermediate files
-#' @param tax_db character, path to taxonomy database created with
-#'   \code{\link{make_tax_db}}
+#' @param tax_db character, path to write taxonomy database
 #'
 #' @export
 #'
 #' @examples
-#'
+#' \dontrun{
 #' prepare_tax_db(output_dir = "\.", tax_db = "taxonomy.db")
+#' }
 prepare_tax_db <- function(output_dir, tax_db) {
   prep_cmd <-
     paste("makeTaxonomyDb.pl",

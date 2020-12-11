@@ -20,9 +20,3 @@ A table with taxonomy and amplicon length data
 \description{
 Get data on the distribution of amplicon lengths for the tested assay
 }
-\examples{
-amp_lens <- amplicon_len(output_dir = "output",
-                         target_taxa = "Blastocystis",
-                         target_level = "genus")
-
-}

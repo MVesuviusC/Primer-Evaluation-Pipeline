@@ -8,11 +8,6 @@
 #' @return
 #' A table with taxonomy and amplicon length data
 #'
-#' @examples
-#' amp_lens <- amplicon_len(output_dir = "output",
-#'                          target_taxa = "Blastocystis",
-#'                          target_level = "genus")
-#'
 amplicon_len <- function(output_dir, target_taxa, target_level) {
   # Pull in data
   amplicon_len_df <- read.delim(paste(output_dir,
@@ -35,8 +30,9 @@ amplicon_len <- function(output_dir, target_taxa, target_level) {
 #' @export
 #'
 #' @examples
-#' plot_amplicon_len(bsPrimerTree = blastoExample)
-#'
+#' \dontrun{
+#' plot_amplicon_len(bsPrimerTree = blasto_example)
+#' }
 plot_amplicon_len <- function(bsPrimerTree) {
   output_dir <- bsPrimerTree$summary_table$output_dir
   target_taxa <- bsPrimerTree$summary_table$target_taxa

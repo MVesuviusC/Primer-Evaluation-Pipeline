@@ -17,9 +17,9 @@ Several plots
 One plot not enough? Make all the plots!
 }
 \examples{
-
+\dontrun{
 pdf("allThePlots.pdf", width = 10, height = 10)
-plot_everything(blastoExample)
+plot_everything(blasto_example)
 dev.off()
-
+}
 }

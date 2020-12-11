@@ -2,7 +2,7 @@
 #'
 #' @param output_dir character, directory to output intermediate files
 #' @param tax_db character, path to taxonomy database created with
-#'   \code{\link{make_tax_db}}
+#'   \code{\link{prepare_tax_db}}
 #'
 #' @return None, writes to a file
 #'

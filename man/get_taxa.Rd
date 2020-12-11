@@ -10,7 +10,7 @@ get_taxa(output_dir, tax_db)
 \item{output_dir}{character, directory to output intermediate files}
 
 \item{tax_db}{character, path to taxonomy database created with
-\code{\link{make_tax_db}}}
+\code{\link{prepare_tax_db}}}
 }
 \value{
 None, writes to a file

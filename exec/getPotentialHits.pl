@@ -8,7 +8,7 @@ use Pod::Usage;
 ##############################
 # By Matt Cannon
 # Date: 9-20-17
-# Last modified: 11-12-20 
+# Last modified: 11-12-20
 # Title: getPotentialHits.pl
 # Purpose: Parse BLAST hits
 ##############################
@@ -19,6 +19,7 @@ use Pod::Usage;
 
 my $verbose;
 my $help;
+my $debug;
 my $blastIn;
 my $taxaIn;
 my $primerF;
@@ -29,6 +30,7 @@ my $bannedWords = "";
 # i = integer, s = string
 GetOptions ("verbose"           => \$verbose,
             "help"              => \$help,
+            "debug"             => \$debug,
             "blastIn=s"         => \$blastIn,
             "taxaIn=s"          => \$taxaIn,
             "primerF=s"         => \$primerF,
@@ -107,18 +109,18 @@ while(my $input = <$taxaFH>) {
 
 ##############################
 ### Go through blast output
-### 
+###
 
 $blastIn =~ s/(.*\.gz)\s*$/gzip -dc < $1|/;
 open BLAST, "$blastIn" or die "Could not open BLAST input\n";
- 
+
 # want: query subjectGi subjectOrder subjectFamily subjectGenus subjectSpecies
 
 #print "query\tsubjectGi\tqueryKingdom\tqueryPhylum\tqueryClass\tqueryOrder\tqueryFamily\tquerySpecies\tsubjectOrder\tsubjectFamily\tsubjectGenus\tsubjectSpecies\n";
 
 while (my $input = <BLAST>) {
     chomp $input;
-    
+
     if($input !~ /^\#/) {
         if($verbose) {
             $blastCount++;
@@ -129,7 +131,7 @@ while (my $input = <BLAST>) {
         my ($query, $sTaxid, $score, $alignLen, $qStart, $qEnd, $qLen, $sStart, $sEnd, $sLen, $sAcc) = split "\t", $input;
 
         my $alignPercent = 100 * ($alignLen / $qLen);
-    
+
       # check if alignment length is above a provided cutoff to avoid sequences with 30bp aligned out of a 300bp fragment
         # alignVar is a percent
         # there is a problem here. The output does not indicate which side each primer belongs on. For now I am assuming
@@ -139,20 +141,20 @@ while (my $input = <BLAST>) {
               # Put results into hash to remove duplicates
               if(exists($taxaHash{$sTaxid})) {
                   if($taxaHash{$sTaxid}{species} !~ /($bannedWords)/ || $bannedWords eq "") {
-                    $resultsHash{$taxaHash{$sTaxid}{superkingdom} . "\t" . 
-                            $taxaHash{$sTaxid}{kingdom} . "\t" . 
-                            $taxaHash{$sTaxid}{phylum} . "\t" . 
-                            $taxaHash{$sTaxid}{class} . "\t" . 
-                            $taxaHash{$sTaxid}{order} . "\t" . 
-                            $taxaHash{$sTaxid}{family} . "\t" . 
-                            $taxaHash{$sTaxid}{genus} . "\t" . 
+                    $resultsHash{$taxaHash{$sTaxid}{superkingdom} . "\t" .
+                            $taxaHash{$sTaxid}{kingdom} . "\t" .
+                            $taxaHash{$sTaxid}{phylum} . "\t" .
+                            $taxaHash{$sTaxid}{class} . "\t" .
+                            $taxaHash{$sTaxid}{order} . "\t" .
+                            $taxaHash{$sTaxid}{family} . "\t" .
+                            $taxaHash{$sTaxid}{genus} . "\t" .
                             $taxaHash{$sTaxid}{species}
                         } = 1;
                   }
               } else {
-                  $notFoundTaxaList .= $sTaxid . ", "; 
-              print STDERR "taxid ", $sTaxid, " taxonomic information not found!\n";
-                  $notFoundTaxaCount++;
+                    $notFoundTaxaList .= $sTaxid . ", ";
+                    print STDERR "taxid ", $sTaxid, " taxonomic information not found!\n" if($debug);
+                    $notFoundTaxaCount++;
               }
           }
       }
@@ -160,7 +162,8 @@ while (my $input = <BLAST>) {
 }
 
 if($notFoundTaxaCount > 0) {
-    print STDERR "\n\n######\nA total of ", $notFoundTaxaCount, " entries did not have matching taxonomic information in the taxa input file.\n######\n\n";
+    print STDERR "\n\n######\ngetPotentialHits.pl: A total of ", $notFoundTaxaCount, " entries did not have matching taxonomic information in the taxa input file.\n";
+    print STDERR "This is sometimes because your blast database and taxonomy database are different ages. It can also just be from NCBI changing taxids.\n######\n\n"
 }
 
 ##############################
@@ -180,16 +183,16 @@ for my $output (keys %resultsHash) {
 # POD
 ##############################
 
-    
+
 =head SYNOPSIS
 
-Summary:    
-    
+Summary:
+
     getPotentialHits.pl - Using blast output, taxa information and primer sequences, print out any blast hits that could have included the primer sequences
-    
+
 Usage:
 
-    perl getPotentialHits.pl --blastIn <blast.outfmt7> --taxaIn <taxa.txt> --primerF <forward primer> --primerR <reverse primer> [options] 
+    perl getPotentialHits.pl --blastIn <blast.outfmt7> --taxaIn <taxa.txt> --primerF <forward primer> --primerR <reverse primer> [options]
 
 
 =head OPTIONS
@@ -208,11 +211,11 @@ Print out some "helpful" information
 
 =item B<--taxaIn>
 
-Taxonomic information on BLAST hits. Should be the gi number followed by columns of the taxonoic information. Needs to include a header line. 
+Taxonomic information on BLAST hits. Should be the gi number followed by columns of the taxonoic information. Needs to include a header line.
 
 =item B<--blastIn>
 
-Blast input. Should be output from BLAST with -outfmt "7 qseqid sgi length qlen sstart send slen" 
+Blast input. Should be output from BLAST with -outfmt "7 qseqid sgi length qlen sstart send slen"
 
 =item B<--primerFile>
 

@@ -13,7 +13,7 @@ to be one of "skpcofgs"}
 \item{target_level}{character, taxonomic level of the targeted taxa}
 
 \item{tax_db}{character, path to taxonomy database created with
-\code{\link{make_tax_db}}}
+\code{\link{prepare_tax_db}}}
 
 \item{banned_words}{list, a list of words used to identify sequences
 with uncertain taxonomy}

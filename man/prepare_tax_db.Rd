@@ -9,8 +9,7 @@ prepare_tax_db(output_dir, tax_db)
 \arguments{
 \item{output_dir}{character, directory to output intermediate files}
 
-\item{tax_db}{character, path to taxonomy database created with
-\code{\link{make_tax_db}}}
+\item{tax_db}{character, path to write taxonomy database}
 }
 \description{
 This creates the taxonomy database used within bsPrimerTree.
@@ -23,6 +22,7 @@ To use this, you need the code available at
 https://github.com/MVesuviusC/getTaxa
 }
 \examples{
-
+\dontrun{
 prepare_tax_db(output_dir = "\.", tax_db = "taxonomy.db")
+}
 }

@@ -21,5 +21,7 @@ Plot the a phylogenetic tree showing amplifiable targets
 from data created from find_targets
 }
 \examples{
-display_tree(bsPrimerTree = blastoExample)
+\dontrun{
+display_tree(bsPrimerTree = blasto_example)
+}
 }

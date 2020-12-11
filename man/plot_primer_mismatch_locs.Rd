@@ -19,6 +19,8 @@ a plot of mismatch locations
 Plot primer nucleotide mismatch locations
 }
 \examples{
-plot_primer_mismatch_locs(bsPrimerTree = blastoExample,
+\dontrun{
+plot_primer_mismatch_locs(bsPrimerTree = blasto_example,
                                    target = "On-target")
+}
 }

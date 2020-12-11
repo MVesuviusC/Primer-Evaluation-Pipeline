@@ -6,7 +6,7 @@ Author: Matt Cannon
 Maintainer: Matt Cannon <matthewvc1@gmail.com>
 Description: More about what it does (maybe more than one line)
     Use four spaces when indenting paragraphs within the Description.
-License: MIT
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.1.1
@@ -19,4 +19,9 @@ Imports:
     stringr,
     gridExtra,
     tidyr,
-    tibble
+    tibble,
+    ggwordcloud
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

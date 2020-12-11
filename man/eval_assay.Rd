@@ -37,7 +37,7 @@ to be one of "skpcofgs"}
 \item{blast_db}{character, path to blast database}
 
 \item{tax_db}{character, path to taxonomy database created with
-\code{\link{make_tax_db}}}
+\code{\link{prepare_tax_db}}}
 
 \item{output_dir}{character, directory to output intermediate files}
 
@@ -56,7 +56,7 @@ A bsPrimerTree object, which is a list with the following elements,
 \item{summary_table}{a list with summary metrics,
   most easily accessed through summary()}
 \item{amplifiable}{A table of species that can be amplified by these primers}
-\item{amplifiable_on_target}{A table of on-target species that can be
+\item{AmplifiableOnTarget}{A table of on-target species that can be
   amplified by these primers}
 \item{species_seqd_at_locus}{A table of species that have sequence available
   in the blast nt database at this locus}
@@ -75,7 +75,7 @@ Be aware that since this function uses blast, it may require a lot of
 ram (40G+).
 }
 \examples{
-
+\dontrun{
 test <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
                    reverse = "TTGCCTCCAGCTTCCCTACA",
                    output_dir = "testRun",
@@ -84,5 +84,5 @@ test <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
                    target_taxa = "Blastocystis",
                    target_level = "genus",
                    threads = 4)
-
+}
 }

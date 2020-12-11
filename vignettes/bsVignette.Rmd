@@ -1,0 +1,21 @@
+---
+title: "Assessment of Metabarcoding Primers Using bsPrimerTree"
+author: "Matt Cannon"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Assessment of Metabarcoding Primers Using bsPrimerTree}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(bsPrimerTree)
+```

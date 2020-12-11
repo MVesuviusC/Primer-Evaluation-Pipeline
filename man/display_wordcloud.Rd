@@ -17,5 +17,7 @@ a plot
 Display a wordcloud of the taxonomic groups amplifiable
 }
 \examples{
-display_wordcloud(bsPrimerTree = blastoExample)
+\dontrun{
+display_wordcloud(bsPrimerTree = blasto_example)
+}
 }

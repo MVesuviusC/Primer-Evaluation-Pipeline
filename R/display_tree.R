@@ -9,7 +9,9 @@
 #' @export
 #'
 #' @examples
-#' display_tree(bsPrimerTree = blastoExample)
+#' \dontrun{
+#' display_tree(bsPrimerTree = blasto_example)
+#' }
 display_tree <- function(bsPrimerTree, ...) {
   output_dir <- bsPrimerTree$summary_table$output_dir
 
@@ -41,7 +43,9 @@ display_tree <- function(bsPrimerTree, ...) {
 #' @export
 #'
 #' @examples
-#' display_wordcloud(bsPrimerTree = blastoExample)
+#' \dontrun{
+#' display_wordcloud(bsPrimerTree = blasto_example)
+#' }
 display_wordcloud <- function(bsPrimerTree) {
   output_dir <- bsPrimerTree$summary_table$output_dir
   target_taxa <- bsPrimerTree$summary_table$target_taxa

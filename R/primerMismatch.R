@@ -76,8 +76,10 @@ primer_mismatch_loc <- function(output_dir, target_taxa, target_level) {
 #' @export
 #'
 #' @examples
-#' plot_primer_mismatch_locs(bsPrimerTree = blastoExample,
+#' \dontrun{
+#' plot_primer_mismatch_locs(bsPrimerTree = blasto_example,
 #'                                    target = "On-target")
+#' }
 plot_primer_mismatch_locs <- function(bsPrimerTree, target = "On-target") {
   forward <- bsPrimerTree$summary_table$primer_for
   reverse <- bsPrimerTree$summary_table$primer_rev

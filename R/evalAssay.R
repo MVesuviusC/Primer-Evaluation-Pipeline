@@ -12,7 +12,7 @@
 #' @param blast_exe character, path to blast version to use
 #' @param blast_db character, path to blast database
 #' @param tax_db character, path to taxonomy database created with
-#'   \code{\link{make_tax_db}}
+#'   \code{\link{prepare_tax_db}}
 #' @param output_dir character, directory to output intermediate files
 #' @param threads numeric, number of processes to use
 #' @param target_taxa character, taxonomic group targeted by the assay - needs
@@ -29,7 +29,7 @@
 #' \item{summary_table}{a list with summary metrics,
 #'   most easily accessed through summary()}
 #' \item{amplifiable}{A table of species that can be amplified by these primers}
-#' \item{amplifiable_on_target}{A table of on-target species that can be
+#' \item{AmplifiableOnTarget}{A table of on-target species that can be
 #'   amplified by these primers}
 #' \item{species_seqd_at_locus}{A table of species that have sequence available
 #'   in the blast nt database at this locus}
@@ -42,7 +42,7 @@
 #' @export
 #'
 #' @examples
-#'
+#' \dontrun{
 #' test <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
 #'                    reverse = "TTGCCTCCAGCTTCCCTACA",
 #'                    output_dir = "testRun",
@@ -51,7 +51,7 @@
 #'                    target_taxa = "Blastocystis",
 #'                    target_level = "genus",
 #'                    threads = 4)
-#'
+#' }
 eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                        blast_exe = "blastn", blast_db = "nt", tax_db,
                        output_dir = "./output", threads = 1,
@@ -97,7 +97,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                  banned_words = banned_words)
 
     # Add amplicon length info to table
-    output$summary_table$median_on_target_amplicon_length <-
+    output$summary_table$MedianOnTargetAmpliconLength <-
       amplicon_len(output_dir = output_dir,
                    target_taxa = target_taxa,
                    target_level = target_level) %>%
@@ -128,29 +128,29 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                                                target_level = target_level)
 
     # Count of all species that are amplifiable
-    output$summary_table$speciesAmplifiableCount <-
+    output$summary_table$AllSpeciesAmplifiableCount <-
       output$amplifiable %>%
       dplyr::pull(species) %>%
       unique() %>%
       length()
 
     # Get list of on-target amplifiable targets
-    output$amplifiable_on_target <-
+    output$AmplifiableOnTarget <-
       list_on_target_amplifiable(output_dir = output_dir,
                                  target_taxa = target_taxa,
                                  target_level = target_level)
 
     # Count of on-target species that are amplifiable
-    output$summary_table$onTargetSpeciesAmplifiableCount <-
-      output$amplifiable_on_target %>%
+    output$summary_table$OnTargetSpeciesAmplifiableCount <-
+      output$AmplifiableOnTarget %>%
       dplyr::pull(species) %>%
       unique() %>%
       length()
 
     # Percent of species amplifiable that are on-target
-    output$summary_table$amplifiablePercentOnTarget <-
-      output$summary_table$onTargetSpeciesAmplifiableCount /
-      output$summary_table$speciesAmplifiableCount
+    output$summary_table$AmplifiablePercentOnTarget <-
+      (output$summary_table$OnTargetSpeciesAmplifiableCount /
+      output$summary_table$AllSpeciesAmplifiableCount) * 100
 
     # Get info on distance between amplifiable targets
     ## Genus
@@ -172,8 +172,8 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
       head(n = 1)
 
     # Prep sequences for second blast
-    warning("Starting blast on amplifiable sequences
-            to get taxonmic specificity data.", immediate. = TRUE)
+    message("Starting blast on amplifiable sequences
+            to get taxonmic specificity data.")
     reblast(blast_exe = blast_exe,
             blast_db = blast_db,
             threads = threads,
@@ -198,14 +198,9 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                                                    reverse = reverse,
                                                    banned_words = banned_words)
 
-    # Calculate the percent of species amplifiable
-    output$summary_table$PercentAmplifiable <-
-      (length(output$amplifiable_on_target$species) /
-      length(output$species_seqd_at_locus$species)) * 100
-
     output$missed_species <- output$species_seqd_at_locus$species[
       output$species_seqd_at_locus$species %in%
-      output$amplifiable_on_target$species]
+      output$AmplifiableOnTarget$species]
 
     # Get list of all known taxa within target group
     output$known_species <-
@@ -215,14 +210,14 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                         banned_words = banned_words)
 
     # Calculate the percent of species with sequence for target locus
-    output$summary_table$percentKnownSpeciesSeqd <-
+    output$summary_table$PercentKnownSpeciesSeqd <-
       (length(output$species_seqd_at_locus$species) /
       length(output$species_in_database$species)) * 100
 
     # List missed species
     output$missed_species <-
       output$species_in_database[!output$species_in_database$species %in%
-                                   output$amplifiable_on_target$species, ]
+                                   output$AmplifiableOnTarget$species, ]
 
     # List unsequenced species
     output$species_unsequenced_at_locus <-
@@ -231,7 +226,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
 
     # Cleanup if I'm told to
     if (clean_up) {
-      warning("Cleaning up some files", immediate. = TRUE)
+      message("Cleaning up some files")
       clean_up_cmd <- paste("rm ",
                             output_dir, "/reblastResults.txt.gz ",
                             output_dir, "/taxonomy.txt",
@@ -257,11 +252,11 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
 #' @return Several plots
 #'
 #' @examples
-#'
+#' \dontrun{
 #' pdf("allThePlots.pdf", width = 10, height = 10)
-#' plot_everything(blastoExample)
+#' plot_everything(blasto_example)
 #' dev.off()
-#'
+#' }
 plot_everything <- function(bsPrimerTree) {
   display_tree(bsPrimerTree = bsPrimerTree)
   display_wordcloud(bsPrimerTree = bsPrimerTree)
@@ -311,8 +306,39 @@ check_depends <- function(blast_exe = "blastn") {
   return(missing_dependency)
 }
 
+
+#' Summarize bsPrimerTree object
+#'
+#' @param object A bsPrimerTree object
+#'
+#' @return A table of summary data from \code{\link{eval_assay}}
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' summary(blasto_example)
+#' }
+summary.bsPrimerTree <- function(object) {
+  summary_data <- stack(object$summary_table)[, c(2, 1)]
+  colnames(summary_data) <- c("Label", object$summary_table$assay_name)
+
+  package_dir <- find.package("bsPrimerTree")
+  field_descriptions <- read.delim(paste(package_dir,
+                                         "/inst/summaryTableFieldDescriptions.txt",
+                                         sep = ""),
+                                   header = TRUE,
+                                   stringsAsFactors = FALSE)
+
+  summary_output <- dplyr::full_join(field_descriptions, summary_data) %>%
+    dplyr::relocate(Label) %>%
+    dplyr::relocate(Description, .after = last_col())
+
+  return(summary_output)
+}
+
 # This is a list of words that are used to exclude results
 # with uncertain taxonomy
+# I may make these into functions to get the data so I can make them private
 banned_word_list <- paste(c("\\ssp\\.",
                             "\\scf\\.",
                             "\\saff\\.",
@@ -335,3 +361,13 @@ allowed_taxa_levels <- c("superkingdom",
                          "family",
                          "genus",
                          "species")
+
+#' bsPrimerTree results for the mammalian 16S primers
+#' @name mammal_example
+#' @docType data
+NULL
+
+#' PrimerTree results for the blastocystis 18S primers
+#' @name blasto_example
+#' @docType data
+NULL
