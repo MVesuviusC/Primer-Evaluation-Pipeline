@@ -9,7 +9,10 @@ primer_mismatch_count(mismatch_data, target_taxa, target_level)
 \arguments{
 \item{mismatch_data}{mismatch data output by bsPrimerTree.pl}
 
-\item{target_level}{}
+\item{target_taxa}{character, taxonomic group targeted by the assay - needs
+to be one of "skpcofgs"}
+
+\item{target_level}{character, taxonomic level of the targeted taxa}
 }
 \value{
 A table of primer mismatch data

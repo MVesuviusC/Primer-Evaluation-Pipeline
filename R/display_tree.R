@@ -15,7 +15,7 @@
 display_tree <- function(bsPrimerTree, ...) {
   # need to trim the taxonomy data off of the tree labels
   # this data is kept because it is used in other parts of the analysis
-  tree_data$tip.label <- gsub(":.+", "", tree_data$tip.label)
+  bsPrimerTree$tree$tip.label <- gsub(":.+", "", bsPrimerTree$tree$tip.label)
 
   print(primerTree::plot_tree_ranks(tree = bsPrimerTree$tree,
                                     taxonomy = bsPrimerTree$gi_taxonomy,
@@ -38,7 +38,9 @@ display_wordcloud <- function(bsPrimerTree) {
   target_taxa <- bsPrimerTree$summary_table$target_taxa
   target_level <- bsPrimerTree$summary_table$target_level
 
-  for_cloud <- bsPrimerTree$taxa_count_summary %>%
+  taxa_levels <- c("superkingdom", "kingdom", "phylum", "class", "order",
+                   "family", "genus", "species")
+  for_cloud <- bsPrimerTree$amplifiable %>%
     dplyr::mutate(., Count = 1,
                   onTarget = dplyr::if_else(get(target_level) == !! target_taxa,
                                             "On-target",
@@ -54,7 +56,7 @@ display_wordcloud <- function(bsPrimerTree) {
     dplyr::ungroup() %>%
     dplyr::filter(., Percent > 0.5) %>%
     dplyr::mutate(., Level = factor(Level,
-                                    levels = colnames(tax_summary[1:8]))) %>%
+                                    levels = taxa_levels)) %>%
     dplyr::mutate(., Taxa = tidyr::replace_na(Taxa, "ND"))
 
     print(ggplot2::ggplot(for_cloud,

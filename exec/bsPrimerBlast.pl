@@ -22,6 +22,7 @@ use List::Util qw(shuffle);
 my $verbose;
 my $help;
 my $primerInput;
+my $tempDir = ".";
 my $maxPrimersPerFile = 100;
 my $maxPrimerVariantsTested = 2000;
 my $forward;
@@ -42,6 +43,7 @@ my $debug;
 GetOptions ("verbose"                    => \$verbose,
             "help"                       => \$help,
             "primerInput=s"              => \$primerInput,
+            "tempDir=s"                  => \$tempDir,
             "maxPrimersPerFile=i"        => \$maxPrimersPerFile,
             "maxPrimerVariantsTested=s"  => \$maxPrimerVariantsTested,
             "forward=s"                  => \$forward,
@@ -184,7 +186,7 @@ for(my $i = 1; $i <= $primerOutFileNum; $i++) {
     my $blastCmd =
     $blastVer . " " .
     "-db " . $blastDb . " " .
-    "-query " . $tempName . "_" . $i . ".txt " .
+    "-query " . $tempDir . "/" . $tempName . "_" . $i . ".txt " .
     "-task blastn " .
     "-evalue 30000 " .
     "-word_size 7 " .
@@ -260,7 +262,7 @@ for my $primerGi (keys %resultsHash){
 }
 
 
-system("rm $tempName" . "_*.txt ") if (!$debug);
+system("rm $tempDir . "/" . $tempName" . "_*.txt ") if (!$debug);
 
 if($verbose) {
     print STDERR "\nDone!\n";
@@ -299,7 +301,7 @@ sub addPrimersToHash {
     my $primerEntriesInFile = 0;
     my $primersOutFH;
 
-    open $primersOutFH, ">", $tempName . "_" . $primerOutFileNum . ".txt";
+    open $primersOutFH, ">", $tempDir . "/" . $tempName . "_" . $primerOutFileNum . ".txt";
 
     # Randomize the arrays in case I need to subsample
     # Don't shuffle if dubugging
@@ -394,7 +396,7 @@ sub parseBlast {
 
     if($sgi eq $lastSgi) {
         my ($lastQseqid, $lastSgi, $lastQlen, $lastQstart, $lastQend,
-            $lastSstart, $lastSend, $lastSlen, $lastSstrand, $lastQseq, 
+            $lastSstart, $lastSend, $lastSlen, $lastSstrand, $lastQseq,
             $lastSseq, $lastStaxids)
                 = split "\t", $lastLine;
 

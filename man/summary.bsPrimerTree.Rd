@@ -4,10 +4,12 @@
 \alias{summary.bsPrimerTree}
 \title{Summarize bsPrimerTree object}
 \usage{
-\method{summary}{bsPrimerTree}(object)
+\method{summary}{bsPrimerTree}(object, ...)
 }
 \arguments{
 \item{object}{A bsPrimerTree object}
+
+\item{...}{Ignored options}
 }
 \value{
 A bsPrimerTree object from \code{\link{eval_assay}}

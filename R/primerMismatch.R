@@ -1,8 +1,9 @@
 #' Add info to primer nucleotide mismatches table
 #'
 #' @param mismatch_data mismatch data output by bsPrimerTree.pl
-#' @param target_taxa
-#' @param target_level
+#' @param target_taxa character, taxonomic group targeted by the assay - needs
+#'   to be one of "skpcofgs"
+#' @param target_level character, taxonomic level of the targeted taxa
 #'
 #' @return A table of primer mismatch data
 #'

@@ -33,7 +33,8 @@ find_targets <- function(forward, reverse, assay_name, blast_path, blast_db,
 
   primer_blast_cmd <- paste("perl",
                             bsPrimerBlast_path,
-                            "--forward",  forward,
+                            "--tempDir", output_dir,
+                            "--forward", forward,
                             "--reverse", reverse,
                             "--primerName", assay_name,
                             "--blastDb", blast_db,
@@ -83,61 +84,54 @@ load_find_target_data <- function(bsPrimerTree, output_dir) {
                comment.char = "#")
   }
 
-  x$amplicon_lengths <- read_data("ampliconLengths.txt")
+  bsPrimerTree$amplicon_lengths <- amplicon_len(read_data("ampliconLengths.txt"),
+                                                target_taxa = target_taxa,
+                                                target_level = target_level)
 
-  x$distance_summary <- read_data("distanceSummary.txt")
+  bsPrimerTree$distance_summary <- distance_data(read_data("distanceSummary.txt"),
+                                                 target_taxa = target_taxa,
+                                                 target_level = target_level)
 
-  x$gi_taxonomy <- read_data("giTaxonomyFile.txt")
+  bsPrimerTree$gi_taxonomy <- read_data("giTaxonomyFile.txt")
 
-  x$primer_mismatches <-
+  bsPrimerTree$primer_mismatches <-
     primer_mismatch_count(read_data("primerMismatches.txt"),
                           target_taxa = target_taxa,
                           target_level = target_level)
 
-  x$primer_mismatch_locs <-
+  bsPrimerTree$primer_mismatch_locs <-
     primer_mismatch_loc(read_data("primerMismatchLocs.txt"),
                         target_taxa = target_taxa,
                         target_level = target_level)
 
-  x$taxa_count_summary <- read_data("taxaCountSummary")
+  bsPrimerTree$amplifiable <- read_data("taxaCountSummary.txt") %>%
+    dplyr::select(-Count)
 
-  x$alignment <- ape::read.dna(paste(output_dir,
-                                     "/bsPrimerTreeOut/",
+  bsPrimerTree$alignment <- ape::read.dna(paste(output_dir,
+                                     "/bsPrimerTreeOut/seqsWithTaxaAligned.fasta",
                                      sep = ""), format = "fasta")
 
-  x$tree <- ape::read.tree(paste(output_dir,
+  bsPrimerTree$tree <- ape::read.tree(paste(output_dir,
                                 "/bsPrimerTreeOut/tree.nwk",
                                 sep = ""))
+
+  bsPrimerTree
 }
 
 #' List on-target amplifiable species
 #'
 #' @param bsPrimerTree a bsPrimerTree object returned by
 #'   \code{\link{eval_assay}}
+#' @param target_taxa character, taxonomic group targeted by the assay - needs
+#'   to be one of "skpcofgs"
+#' @param target_level character, taxonomic level of the targeted taxa
 #'
 #' @return a table of taxonomic data
 #'
-list_on_target_amplifiable <- function(bsPrimerTree) {
-  target_taxa <- bsPrimerTree$summary_table$target_taxa
-  target_level <- bsPrimerTree$summary_table$target_level
-
+list_on_target_amplifiable <- function(bsPrimerTree, target_taxa, target_level) {
   # Get only on target hits
-  bsPrimerTree_hits <- bsPrimerTree$taxa_count_summary %>%
-    dplyr::filter(get(target_level) == target_taxa) %>%
-    dplyr::select(-Count)
-}
-
-#' List all amplifiable species
-#'
-#' @param bsPrimerTree a bsPrimerTree object returned by
-#'   \code{\link{eval_assay}}
-#'
-#' @return A table of taxonomic data
-#'
-list_all_amplifiable <- function(bsPrimerTree) {
-  # Get all hits
-  bsPrimerTree_hits <- bsPrimerTree$taxa_count_summary %>%
-    dplyr::select(-Count)
+  on_target_amplifiable <- bsPrimerTree$amplifiable %>%
+    dplyr::filter(get(target_level) == target_taxa)
 }
 
 #' List all known species within target taxonomic group

@@ -4,11 +4,16 @@
 \alias{list_on_target_amplifiable}
 \title{List on-target amplifiable species}
 \usage{
-list_on_target_amplifiable(bsPrimerTree)
+list_on_target_amplifiable(bsPrimerTree, target_taxa, target_level)
 }
 \arguments{
 \item{bsPrimerTree}{a bsPrimerTree object returned by
 \code{\link{eval_assay}}}
+
+\item{target_taxa}{character, taxonomic group targeted by the assay - needs
+to be one of "skpcofgs"}
+
+\item{target_level}{character, taxonomic level of the targeted taxa}
 }
 \value{
 a table of taxonomic data

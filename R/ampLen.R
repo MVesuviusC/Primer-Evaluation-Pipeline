@@ -1,3 +1,21 @@
+#' Get data on the distribution of amplicon lengths for the tested assay
+#'
+#' @param amplicon_data character, amplicon data returned by bsPrimerTree.pl
+#' @param target_taxa character, taxonomic group targeted by the assay -
+#'   needs to be one of "skpcofgs"
+#' @param target_level character, taxonomic level of the targeted taxa
+#'
+#' @return
+#' A table with taxonomy and amplicon length data
+#'
+amplicon_len <- function(amplicon_data, target_taxa, target_level) {
+  # Mark which hits are on-target
+  amplicon_data$onTarget <- grepl(target_taxa,
+                                  amplicon_data[[target_level]])
+
+  amplicon_data
+}
+
 #' Plot the distribution of amplicon lengths for the tested assay
 #'
 #' @param bsPrimerTree a bsPrimerTree object returned by
@@ -10,7 +28,8 @@
 #' plot_amplicon_len(bsPrimerTree = blasto_example)
 #' }
 plot_amplicon_len <- function(bsPrimerTree) {
-  print(ggplot2::ggplot(bsPrimerTree$amplicon_lengths,
+  amplicon_df <- bsPrimerTree$amplicon_lengths
+  print(ggplot2::ggplot(amplicon_df,
                         ggplot2::aes(x = as.numeric(length),
                                      y = count,
                                      fill = onTarget)) +

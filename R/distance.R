@@ -41,9 +41,7 @@ plot_distance <- function(bsPrimerTree,
   target_level <- bsPrimerTree$summary_table$target_level
 
   plot_dist <- function(level_in_use) {
-    distance_data(bsPrimerTree$distance_summary,
-                  target_taxa = target_taxa,
-                  target_level = target_level) %>%
+    bsPrimerTree$distance_summary %>%
       dplyr::filter(OnTarget == target) %>%
       dplyr::filter(CompLevel == level_in_use) %>%
       ggplot2::ggplot(., ggplot2::aes(x = MeanDist,

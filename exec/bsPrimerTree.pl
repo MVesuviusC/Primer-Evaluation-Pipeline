@@ -536,10 +536,10 @@ while ( my $fasta = <$alignedFastaFH> ) {
             # calc distance
             if ( $alignedSeqHash{$fastaEntry}{family} eq $f && $f ne "NA" ) {
                 my $keyToUse =
-                    "family\t"
-                  . $sk . "\t"
-                  . $k . "\t"
-                  . $p . "\t"
+                    "family\t" 
+                  . $sk . "\t" 
+                  . $k . "\t" 
+                  . $p . "\t" 
                   . $c . "\t"
                   . $o . "\t"
                   . $f
@@ -549,16 +549,16 @@ while ( my $fasta = <$alignedFastaFH> ) {
 
                 # Check if $distHash entry exists, if not, initialize at 1
                 if ( !exists( $distHash{$keyToUse}{count} ) ) {
-                    $distHash{$keyToUse}{count} = 1;
+                    $distHash{$keyToUse}{count} = 0;
                 }
                 $distHash{$keyToUse}{count}++;
             }
             if ( $alignedSeqHash{$fastaEntry}{genus} eq $g && $g ne "NA" ) {
                 my $keyToUse =
-                    "genus\t"
-                  . $sk . "\t"
-                  . $k . "\t"
-                  . $p . "\t"
+                    "genus\t" 
+                  . $sk . "\t" 
+                  . $k . "\t" 
+                  . $p . "\t" 
                   . $c . "\t"
                   . $o . "\t"
                   . $f . "\t"
@@ -566,16 +566,16 @@ while ( my $fasta = <$alignedFastaFH> ) {
 
                 $distHash{$keyToUse}{sum} += $dist;
                 if ( !exists( $distHash{$keyToUse}{count} ) ) {
-                    $distHash{$keyToUse}{count} = 1;
+                    $distHash{$keyToUse}{count} = 0;
                 }
                 $distHash{$keyToUse}{count}++;
             }
             if ( $alignedSeqHash{$fastaEntry}{species} eq $sp && $sp ne "NA" ) {
                 my $keyToUse =
-                    "species\t"
-                  . $sk . "\t"
-                  . $k . "\t"
-                  . $p . "\t"
+                    "species\t" 
+                  . $sk . "\t" 
+                  . $k . "\t" 
+                  . $p . "\t" 
                   . $c . "\t"
                   . $o . "\t"
                   . $f . "\t"
@@ -584,7 +584,7 @@ while ( my $fasta = <$alignedFastaFH> ) {
 
                 $distHash{$keyToUse}{sum} += $dist;
                 if ( !exists( $distHash{$keyToUse}{count} ) ) {
-                    $distHash{$keyToUse}{count} = 1;
+                    $distHash{$keyToUse}{count} = 0;
                 }
                 $distHash{$keyToUse}{count}++;
             }

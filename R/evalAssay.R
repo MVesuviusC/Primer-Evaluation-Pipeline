@@ -83,7 +83,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                                target_level = target_level,
                                banned_words = banned_words)
 
-  depends_missing <- check_depends(blast_exe = blast_exe)
+  depends_missing <- missing_depends(blast_exe = blast_exe)
 
   if (depends_missing) {
     warning("Dependency missing. Stopping evaluation.", immediate. = TRUE)
@@ -107,7 +107,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
 
     # Add amplicon length info to summary table
     output$summary_table$MedianOnTargetAmpliconLength <-
-      output$amplicon_length %>%
+      output$amplicon_lengths %>%
       dplyr::filter(onTarget == TRUE) %>%
       dplyr::pull(length) %>%
       median(na.rm = TRUE)
@@ -120,13 +120,10 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
       mean()
 
     output$summary_table$MeanOnTargetTotalMismatches <-
-      output$primer_mismatch_count %>%
+      output$primer_mismatches %>%
       dplyr::filter(OnTarget == "On-target") %>%
       dplyr::pull(mismatchTotal) %>%
       mean()
-
-    # List all species amplifiable
-    output$amplifiable <- list_all_amplifiable(output)
 
     # Count of all species that are amplifiable
     output$summary_table$AllSpeciesAmplifiableCount <-
@@ -136,7 +133,10 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
       length()
 
     # Get list of on-target amplifiable targets
-    output$AmplifiableOnTarget <- list_on_target_amplifiable(output)
+    output$AmplifiableOnTarget <-
+      list_on_target_amplifiable(output,
+                                 target_taxa = target_taxa,
+                                 target_level = target_level)
 
     # Count of on-target species that are amplifiable
     output$summary_table$OnTargetSpeciesAmplifiableCount <-
@@ -153,16 +153,14 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
     # Get info on distance between amplifiable targets
     ## Genus
     output$summary_table$MeanOnTargetDistBetweenSeqsWithinEachGenus <-
-      distance_data(output$distance_summary,
-                    target_taxa = target_taxa,
-                    target_level = target_level) %>%
+      output$distance_summary %>%
       dplyr::filter(OnTarget == "On-target", CompLevel == "genus") %>%
       dplyr::pull(LevelAverage) %>%
       head(n = 1)
 
     ## Species
     output$summary_table$MeanOnTargetDistBetweenSeqsWithinEachSpecies <-
-      distance_data(output$distance_summary) %>%
+      output$distance_summary %>%
       dplyr::filter(OnTarget == "On-target", CompLevel == "species") %>%
       dplyr::pull(LevelAverage) %>%
       head(n = 1)
@@ -194,10 +192,6 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                                                    reverse = reverse,
                                                    banned_words = banned_words)
 
-    output$missed_species <- output$species_seqd_at_locus$species[
-      output$species_seqd_at_locus$species %in%
-      output$AmplifiableOnTarget$species]
-
     # Get list of all known taxa within target group
     output$known_species <-
       all_known_species(target_taxa = target_taxa,
@@ -208,17 +202,17 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
     # Calculate the percent of species with sequence for target locus
     output$summary_table$PercentKnownSpeciesSeqd <-
       (length(output$species_seqd_at_locus$species) /
-      length(output$species_in_database$species)) * 100
+      length(output$known_species$species)) * 100
 
     # List missed species
     output$missed_species <-
-      output$species_in_database[!output$species_in_database$species %in%
+      output$known_species[!output$known_species$species %in%
                                    output$AmplifiableOnTarget$species, ]
 
     # List unsequenced species
     output$species_unsequenced_at_locus <-
-      output$species_in_database[!output$species_in_database$species %in%
-                                   output$species_in_database$species, ]
+      output$known_species[!output$known_species$species %in%
+                                   output$species_seqd_at_locus$species, ]
 
     # Cleanup if I'm told to
     if (clean_up) {
@@ -265,13 +259,13 @@ plot_everything <- function(bsPrimerTree) {
 #'
 #' @return logical, FALSE if all dependencies are present
 #'
-check_depends <- function(blast_exe = "blastn") {
+missing_depends <- function(blast_exe = "blastn") {
   missing_dependency <- FALSE
 
   for (command_to_check in c(blast_exe, "blastdbcmd", "mafft", "perl",
                             "getTaxaLocal.pl", "FastTree")) {
     if (Sys.which(command_to_check) == "") {
-      warning(command_to_check, " command not found. Please ensure this program
+      message(command_to_check, " command not found. Please ensure this program
               is installed and in your $PATH")
       message(command_to_check, " command not found. Please ensure this program
               is installed and in your $PATH")
@@ -280,22 +274,25 @@ check_depends <- function(blast_exe = "blastn") {
   }
 
   # check if blastn has -sum_stats option
-  check_blastn_cmd <- paste(blast_exe,
-                            "-help",
-                            "|",
-                            "grep sum_stats")
-  check_blastn <- suppressWarnings(system(check_blastn_cmd, intern = TRUE))
+  if (Sys.which(blast_exe) != "") {
+    check_blastn_cmd <- paste(blast_exe,
+                              "-help",
+                              "|",
+                              "grep sum_stats")
+    check_blastn <- suppressWarnings(system(check_blastn_cmd, intern = TRUE))
 
-  if (length(check_blastn) == 0) {
-    warning("Your version of blastn does not have the -sum_stats option.",
-            immediate. = TRUE)
-    warning("This version will not work for this pipeline.", immediate. = TRUE)
-    warning("Either add a different blastn version to your $PATH or provide
+    if (length(check_blastn) == 0) {
+      message("Your version of blastn does not have the -sum_stats option.",
+              immediate. = TRUE)
+      message("This version will not work for this pipeline.", immediate. = TRUE)
+      message("Either add a different blastn version to your $PATH or provide
             a path to the executable using the blast_exe option",
-            immediate. = TRUE)
+              immediate. = TRUE)
 
-    missing_dependency <- TRUE
+      missing_dependency <- TRUE
+    }
   }
+
   missing_dependency
 }
 
@@ -303,6 +300,7 @@ check_depends <- function(blast_exe = "blastn") {
 #' Summarize bsPrimerTree object
 #'
 #' @param object A bsPrimerTree object
+#' @param ... Ignored options
 #'
 #' @return A bsPrimerTree object from \code{\link{eval_assay}}
 #' @export
@@ -311,21 +309,24 @@ check_depends <- function(blast_exe = "blastn") {
 #' \dontrun{
 #' summary(blasto_example)
 #' }
-summary.bsPrimerTree <- function(object) {
+summary.bsPrimerTree <- function(object, ...) {
   summary_data <- stack(object$summary_table)[, c(2, 1)]
   colnames(summary_data) <- c("Label", object$summary_table$assay_name)
 
   package_dir <- find.package("bsPrimerTree")
   field_descriptions <- read.delim(paste(package_dir,
-                                         "/inst/summaryTableFieldDescriptions.txt",
+                                         "/summaryTableFieldDescriptions.txt",
                                          sep = ""),
                                    header = TRUE,
                                    stringsAsFactors = FALSE)
 
-  summary_output <- dplyr::full_join(field_descriptions, summary_data) %>%
+  summary_output <- dplyr::full_join(field_descriptions,
+                                     summary_data,
+                                     by = "Label") %>%
     dplyr::relocate(Label) %>%
-    dplyr::relocate(Description, .after = last_col())
+    dplyr::relocate(Description, .after = dplyr::last_col())
 
+  summary_output
 }
 
 # This is a list of words that are used to exclude results
