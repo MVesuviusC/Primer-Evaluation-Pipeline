@@ -13,8 +13,8 @@ distance_data <- function(distance, target_taxa, target_level) {
   distance$OnTarget[grepl(target_taxa, distance[[target_level]])] <- "On-target"
 
   distance_summary <- distance %>%
-    dplyr::group_by(., CompLevel, OnTarget) %>%
-    dplyr::mutate(., LevelAverage =
+    dplyr::group_by(CompLevel, OnTarget) %>%
+    dplyr::mutate(LevelAverage =
                     sum(MeanDist * nCompared) / sum(nCompared)) %>%
     dplyr::ungroup()
 }
@@ -44,7 +44,7 @@ plot_distance <- function(bsPrimerTree,
     bsPrimerTree$distance_summary %>%
       dplyr::filter(OnTarget == target) %>%
       dplyr::filter(CompLevel == level_in_use) %>%
-      ggplot2::ggplot(., ggplot2::aes(x = MeanDist,
+      ggplot2::ggplot(ggplot2::aes(x = MeanDist,
                                       fill = OnTarget)) +
       ggplot2::geom_histogram(binwidth = 1) +
       ggplot2::ggtitle(paste(stringr::str_to_title(level_in_use),

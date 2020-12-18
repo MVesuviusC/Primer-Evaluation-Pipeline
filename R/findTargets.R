@@ -163,5 +163,5 @@ all_known_species <- function(target_taxa, target_level, tax_db, banned_words) {
   potential_hit_df <- tax_data[2:length(tax_data)] %>%
     tibble::as_tibble() %>%
     tidyr::separate(col = "value", sep = "\t", into = col_names[[1]], ) %>%
-    dplyr::filter(., grepl(banned_words, species) == FALSE)
+    dplyr::filter(grepl(banned_words, species) == FALSE)
 }

@@ -41,23 +41,23 @@ display_wordcloud <- function(bsPrimerTree) {
   taxa_levels <- c("superkingdom", "kingdom", "phylum", "class", "order",
                    "family", "genus", "species")
   for_cloud <- bsPrimerTree$amplifiable %>%
-    dplyr::mutate(., Count = 1,
+    dplyr::mutate(Count = 1,
                   onTarget = dplyr::if_else(get(target_level) == !! target_taxa,
                                             "On-target",
                                             "Off-target",
                                             "Off-target")) %>%
-    dplyr::select(., -species) %>% # this adds too many entries
-    tidyr::gather(., "Level", "Taxa", -Count, -onTarget) %>%
-    dplyr::group_by(., Taxa, Level, onTarget) %>%
-    dplyr::summarize(., Count = sum(Count)) %>%
+    dplyr::select(-species) %>% # this adds too many entries
+    tidyr::gather("Level", "Taxa", -Count, -onTarget) %>%
+    dplyr::group_by(Taxa, Level, onTarget) %>%
+    dplyr::summarize(Count = sum(Count)) %>%
     dplyr::ungroup() %>%
-    dplyr::group_by(., Level) %>%
-    dplyr::mutate(., Percent = 100 * round(Count / sum(Count), 4)) %>%
+    dplyr::group_by(Level) %>%
+    dplyr::mutate(Percent = 100 * round(Count / sum(Count), 4)) %>%
     dplyr::ungroup() %>%
-    dplyr::filter(., Percent > 0.5) %>%
-    dplyr::mutate(., Level = factor(Level,
+    dplyr::filter(Percent > 0.5) %>%
+    dplyr::mutate(Level = factor(Level,
                                     levels = taxa_levels)) %>%
-    dplyr::mutate(., Taxa = tidyr::replace_na(Taxa, "ND"))
+    dplyr::mutate(Taxa = tidyr::replace_na(Taxa, "ND"))
 
     print(ggplot2::ggplot(for_cloud,
                           ggplot2::aes(label = paste(Taxa,

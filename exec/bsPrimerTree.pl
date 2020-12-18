@@ -154,8 +154,7 @@ while ( my $input = <$inputFH> ) {
     $mismatchHash{$sTaxids}{ $primer1Dir . "\t"
           . $primer1MismatchCount . "\t"
           . $primer1Mismatch3PrimeTip }++;
-    $mismatchLocsHash{$sTaxids}
-      { $primer1Dir . "\t" . join( ",", @primer1MismatchLocArray ) }++;
+    $mismatchLocsHash{$sTaxids}{$primer1Dir}{$primer1MismatchLocNums}++;
 
     # Primer 2 mismatches
     my ( $primer2Dir, $primer2MismatchLocNums ) = split ":",
@@ -166,8 +165,7 @@ while ( my $input = <$inputFH> ) {
     $mismatchHash{$sTaxids}{ $primer2Dir . "\t"
           . $primer2MismatchCount . "\t"
           . $primer2Mismatch3PrimeTip }++;
-    $mismatchLocsHash{$sTaxids}
-      { $primer2Dir . "\t" . join( ",", @primer2MismatchLocArray ) }++;
+    $mismatchLocsHash{$sTaxids}{$primer2Dir}{$primer2MismatchLocNums}++;
 
 # Store hit seq and other end hit seqs for each hit so I can trim them off later
     @{ $seqTrimHash{$sGi} } = ( $primer1SSeq, $primer2SSeq );
@@ -362,7 +360,7 @@ print $mismatchFile join( "\t",
     "taxid", "superkingdom", "kingdom", "phylum",
     "class", "order", "family", "genus",
     "species", "direction", "mismatchTotal", "mismatch5Prime",
-    "count", "totalCount" ),
+    "count"),
   "\n";
 
 open my $mismatchLocsFile, ">", $outDir . "primerMismatchLocs.txt";
@@ -370,46 +368,61 @@ print $mismatchLocsFile "# 1 is the 3 prime end of the primer\n";
 print $mismatchLocsFile join( "\t",
     "taxid", "superkingdom", "kingdom", "phylum",
     "class", "order", "family", "genus",
-    "species", "direction", "mismatchLoc", "mismatchBase",
-    "count" ),
+    "species", "direction", "mismatchLoc", "mismatchBase"),
   "\n";
 
 for my $taxid ( keys %taxaHash ) {
 
     # Mismatch counts
-    for my $mismatch ( keys %{ $mismatchHash{$taxid} } ) {
-        print $mismatchFile $taxid . "\t"
+    # Keep the sequence from each taxid with seen the most, randomly deciding ties
+    my @mismatchKeys = sort {
+        $mismatchHash{$taxid}{$b} <=> $mismatchHash{$taxid}{$a}
+        or rand() cmp rand()
+    } keys( %{ $mismatchHash{$taxid} } );
+
+    print $mismatchFile $taxid . "\t"
           . $taxaHash{$taxid} . "\t"
-          . $mismatch . "\t"
-          . $mismatchHash{$taxid}{$mismatch} . "\t"
-          . $blastHitCount, "\n";
-    }
+          . $mismatchKeys[0] . "\t"
+          . $mismatchHash{$taxid}{$mismatchKeys[0]} . "\n";
 
     # Mismatch locations
-    for my $mismatchLocs ( keys %{ $mismatchLocsHash{$taxid} } ) {
-        my ( $direction, $mismatchNums ) = split( "\t", $mismatchLocs );
+    for my $direction ( ( "for", "rev" ) ) {
+        if ( exists( $mismatchLocsHash{$taxid}{$direction} ) ) {
+            my @mismatchLocKeys = sort {
+                $mismatchLocsHash{$taxid}{$direction}
+                  {$b} <=> $mismatchLocsHash{$taxid}{$direction}{$a}
+                  or rand() cmp rand()
+            } keys( %{ $mismatchLocsHash{$taxid}{$direction} } );
 
-        my @mismatchLocArray = split ",", $mismatchNums;
-        for my $loc (@mismatchLocArray) {
-            my ( $locNum, $locNt ) = split "_", $loc;
-            print $mismatchLocsFile $taxid . "\t"
-              . $taxaHash{$taxid} . "\t"
-              . $direction . "\t"
-              . $locNum . "\t"
-              . $locNt . "\t" . "1\n";
-        }
+            if ( $mismatchLocKeys[0] ne "") { # there is a mismatch present
+                my ( $mismatchNums, $sGi ) = split( "\t", $mismatchLocKeys[0] );
+                my @mismatchLocArray = split ",", $mismatchNums;
 
-        # For primers with no mismatches
-        if ( scalar( @mismatchLocArray == 0 ) ) {
+                for my $loc (@mismatchLocArray) {
+                    my ( $locNum, $locNt ) = split "_", $loc;
+                    print $mismatchLocsFile $taxid . "\t"
+                    . $taxaHash{$taxid} . "\t"
+                    . $direction . "\t"
+                    . $locNum . "\t"
+                    . $locNt . "\n";
+                }
+            } else { # no mismatch present
+                print $mismatchLocsFile $taxid . "\t"
+                  . $taxaHash{$taxid} . "\t"
+                  . $direction . "\t"
+                  . "NA\tNA\n";
+            }
+        } else { # this primer wasn't found for the match
             print $mismatchLocsFile $taxid . "\t"
-              . $taxaHash{$taxid} . "\t"
-              . $direction . "\t"
-              . "NA\tNA\t" . "1\n";
+                  . $taxaHash{$taxid} . "\t"
+                  . $direction . "\t"
+                  . "NotFound\tNotFound\n";
         }
     }
 }
 
 close $mismatchFile;
+close $mismatchLocsFile;
 close $blastDbCmdResponse;
 $dbh->disconnect;
 
@@ -536,10 +549,10 @@ while ( my $fasta = <$alignedFastaFH> ) {
             # calc distance
             if ( $alignedSeqHash{$fastaEntry}{family} eq $f && $f ne "NA" ) {
                 my $keyToUse =
-                    "family\t" 
-                  . $sk . "\t" 
-                  . $k . "\t" 
-                  . $p . "\t" 
+                    "family\t"
+                  . $sk . "\t"
+                  . $k . "\t"
+                  . $p . "\t"
                   . $c . "\t"
                   . $o . "\t"
                   . $f
@@ -555,10 +568,10 @@ while ( my $fasta = <$alignedFastaFH> ) {
             }
             if ( $alignedSeqHash{$fastaEntry}{genus} eq $g && $g ne "NA" ) {
                 my $keyToUse =
-                    "genus\t" 
-                  . $sk . "\t" 
-                  . $k . "\t" 
-                  . $p . "\t" 
+                    "genus\t"
+                  . $sk . "\t"
+                  . $k . "\t"
+                  . $p . "\t"
                   . $c . "\t"
                   . $o . "\t"
                   . $f . "\t"
@@ -572,10 +585,10 @@ while ( my $fasta = <$alignedFastaFH> ) {
             }
             if ( $alignedSeqHash{$fastaEntry}{species} eq $sp && $sp ne "NA" ) {
                 my $keyToUse =
-                    "species\t" 
-                  . $sk . "\t" 
-                  . $k . "\t" 
-                  . $p . "\t" 
+                    "species\t"
+                  . $sk . "\t"
+                  . $k . "\t"
+                  . $p . "\t"
                   . $c . "\t"
                   . $o . "\t"
                   . $f . "\t"
@@ -632,7 +645,7 @@ if ( !$noPlots ) {
 }
 
 if ($verbose) {
-    print STDERR "Done!!!!\n";
+    print STDERR "bsPrimerTree done!!!!\n";
     my @time = localtime(time);
     print STDERR "Time: ", $time[2] . ":" . $time[1], "\n";
 }

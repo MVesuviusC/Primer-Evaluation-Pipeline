@@ -133,14 +133,14 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
       length()
 
     # Get list of on-target amplifiable targets
-    output$AmplifiableOnTarget <-
+    output$amplifiableOnTarget <-
       list_on_target_amplifiable(output,
                                  target_taxa = target_taxa,
                                  target_level = target_level)
 
     # Count of on-target species that are amplifiable
     output$summary_table$OnTargetSpeciesAmplifiableCount <-
-      output$AmplifiableOnTarget %>%
+      output$amplifiableOnTarget %>%
       dplyr::pull(species) %>%
       unique() %>%
       length()
@@ -207,7 +207,7 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
     # List missed species
     output$missed_species <-
       output$known_species[!output$known_species$species %in%
-                                   output$AmplifiableOnTarget$species, ]
+                                   output$amplifiableOnTarget$species, ]
 
     # List unsequenced species
     output$species_unsequenced_at_locus <-

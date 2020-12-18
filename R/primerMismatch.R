@@ -81,25 +81,29 @@ plot_primer_mismatch_locs <- function(bsPrimerTree, target = "On-target") {
     mismatch_plot <- bsPrimerTree$primer_mismatch_locs %>%
       dplyr::filter(OnTarget == target) %>%
       dplyr::filter(mismatchBase %in% c("A", "T", "G", "C", NA)) %>%
-        dplyr::filter(direction == primer) %>%
-        dplyr::mutate(taxCount = length(unique(taxid))) %>%
-        ggplot2::ggplot(., ggplot2::aes(x = mismatchLoc,
-                                     y = count / taxCount,
-                                     fill = mismatchBase)) +
-        ggplot2::geom_bar(stat = "identity") +
-        ggplot2::labs(title = paste("Proportion of amplifiable targets with ",
-                                    "primer mismatches at each location\n",
-                                    target,
-                                    " species, ",
-                                    primer,
-                                    " primer",
-                                    sep = "")) +
-        ggplot2::ylim(0, 1) +
-        ggplot2::xlab("5' end <-----------Primer position-----------> 3' end") +
-        ggplot2::ylab("") +
-        ggplot2::scale_x_reverse(limits = c(length(get(primer)), 1),
-                                 breaks = seq_len(length(get(primer))),
-                                 labels = get(primer))
+      tidyr::replace_na(list(mismatchLoc = 0)) %>%
+      dplyr::mutate(mismatchLoc = as.numeric(mismatchLoc)) %>%
+      dplyr::filter(direction == primer) %>%
+      dplyr::mutate(taxCount = length(unique(taxid)),
+                    count = 1) %>%
+      ggplot2::ggplot(ggplot2::aes(x = mismatchLoc,
+                                   y = count / taxCount,
+                                   fill = mismatchBase)) +
+      ggplot2::geom_bar(stat = "identity") +
+      ggplot2::labs(title = paste("Proportion of amplifiable targets with ",
+                                  "primer mismatches at each location\n",
+                                  target,
+                                  " species, ",
+                                  primer,
+                                  " primer",
+                                  sep = ""),
+                    fill = "Mismatched\nbase") +
+      ggplot2::ylim(0, 1) +
+      ggplot2::xlab("5' end <-----------Primer position-----------> 3' end") +
+      ggplot2::ylab("") +
+      ggplot2::scale_x_reverse(limits = c(length(get(primer)), 1),
+                               breaks = seq_len(length(get(primer))),
+                               labels = get(primer))
   }
   gridExtra::grid.arrange(grobs = lapply(c("Forward", "Reverse"),
                                          plot_mismatch))
