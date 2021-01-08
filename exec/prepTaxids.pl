@@ -53,7 +53,11 @@ while (my $input = <$blastResultsInput>){
     chomp $input;
     if($input !~ /\#/) {
         my @lineArray = split "\t", $input;
-        $taxids{$lineArray[1]} = 1;
+        # some "taxids" returned have multiple separated by ";"
+        my @taxidArray = split ";", $lineArray[1];
+        for(@taxidArray) {
+          $taxids{$_} = 1;
+        }
     }
 }
 
@@ -67,13 +71,13 @@ for my $taxid (keys %taxids) {
 ##############################
 
 #=pod
-    
+
 =head SYNOPSIS
 
-Summary:    
-    
+Summary:
+
     filterFastaNs.pl - generates a consensus for a specified gene in a specified taxa
-    
+
 Usage:
 
     perl filterFastaNs.pl [options] --fasta infile.fasta

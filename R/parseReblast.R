@@ -53,6 +53,7 @@ tax_specificity <- function(output_dir, banned_words) {
   specificity_results <- system(find_top_cmd, intern = TRUE) %>%
     tibble::as_tibble() %>%
     tidyr::separate(col = "value", sep = "\t", into = c("label", "data")) %>%
+    dplyr::mutate(data = as.numeric(data) * 100) %>%
     dplyr::pull(data, name = label)
 }
 

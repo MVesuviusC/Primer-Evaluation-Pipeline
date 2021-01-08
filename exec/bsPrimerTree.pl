@@ -136,41 +136,39 @@ while ( my $input = <$inputFH> ) {
       )
       = split "\t", $input;
 
-    print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
-
 # some taxids have two taxids separated by ";" - need to deal with this better at some point
-    $sTaxids =~ s/;.+//;
+    if ($sTaxids !~ /;/) {
+        print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
 
-    # store amplicon length until I have taxa info
-    $ampLenHash{$sTaxids}{$sAmpLen}++;
+        # store amplicon length until I have taxa info
+        $ampLenHash{$sTaxids}{$sAmpLen}++;
 
-    # Store mismatch info to parse out later once we have the taxa info
-    # Primer 1 mismatches
-    my ( $primer1Dir, $primer1MismatchLocNums ) = split ":",
-      $primer1MismatchLocs;
-    my @primer1MismatchLocArray = split ",", $primer1MismatchLocNums;
-    my $primer1MismatchCount = scalar(@primer1MismatchLocArray);
+        # Store mismatch info to parse out later once we have the taxa info
+        # Primer 1 mismatches
+        my ( $primer1Dir, $primer1MismatchLocNums ) = split ":",
+        $primer1MismatchLocs;
+        my @primer1MismatchLocArray = split ",", $primer1MismatchLocNums;
+        my $primer1MismatchCount = scalar(@primer1MismatchLocArray);
 
-    $mismatchHash{$sTaxids}{ $primer1Dir . "\t"
-          . $primer1MismatchCount . "\t"
-          . $primer1Mismatch3PrimeTip }++;
-    $mismatchLocsHash{$sTaxids}{$primer1Dir}{$primer1MismatchLocNums}++;
+        $mismatchHash{$sTaxids}{ $primer1Dir . "\t"
+            . $primer1MismatchCount . "\t"
+            . $primer1Mismatch3PrimeTip }++;
+        $mismatchLocsHash{$sTaxids}{$primer1Dir}{$primer1MismatchLocNums}++;
 
-    # Primer 2 mismatches
-    my ( $primer2Dir, $primer2MismatchLocNums ) = split ":",
-      $primer2MismatchLocs;
-    my @primer2MismatchLocArray = split ",", $primer2MismatchLocNums;
-    my $primer2MismatchCount = scalar(@primer2MismatchLocArray);
+        # Primer 2 mismatches
+        my ( $primer2Dir, $primer2MismatchLocNums ) = split ":",
+        $primer2MismatchLocs;
+        my @primer2MismatchLocArray = split ",", $primer2MismatchLocNums;
+        my $primer2MismatchCount = scalar(@primer2MismatchLocArray);
 
-    $mismatchHash{$sTaxids}{ $primer2Dir . "\t"
-          . $primer2MismatchCount . "\t"
-          . $primer2Mismatch3PrimeTip }++;
-    $mismatchLocsHash{$sTaxids}{$primer2Dir}{$primer2MismatchLocNums}++;
+        $mismatchHash{$sTaxids}{ $primer2Dir . "\t"
+            . $primer2MismatchCount . "\t"
+            . $primer2Mismatch3PrimeTip }++;
+        $mismatchLocsHash{$sTaxids}{$primer2Dir}{$primer2MismatchLocNums}++;
 
-# Store hit seq and other end hit seqs for each hit so I can trim them off later
-    @{ $seqTrimHash{$sGi} } = ( $primer1SSeq, $primer2SSeq );
-
-    #$blastHitCount++; # store this for primer mismatch printing
+    # Store hit seq and other end hit seqs for each hit so I can trim them off later
+        @{ $seqTrimHash{$sGi} } = ( $primer1SSeq, $primer2SSeq );
+    }
 }
 
 close $inputFH;
@@ -238,107 +236,105 @@ while ( my $blastInput = <$blastDbCmdResponse> ) {
 
     my $taxid = $header;
     $taxid =~ s/.+_//;
-    $taxid =~ s/;.+//
-      ; # some entries have more than 1 taxid - need to deal with this better at some point....
 
-    ### use the subject sequences given by bsPrimerBlast to trim primer sequence aligned portion off sequence
+    # some entries have more than 1 taxid - need to deal with this better at some point....
+    if($taxid !~ /;/) {
+    
+        ### use the subject sequences given by bsPrimerBlast to trim primer sequence aligned portion off sequence
 
-    ###
-    ############  See Haikel's Nege2 primers, but the returned sequence/primers may need to be rev comp'd to find the match for trimming
-    ### Negevirus_group2_F GTTGCWGGTCACGGTAARAC    Negevirus_group2_R CRTCAGCWGGAATWCGATAC
+        my @seqsToTrimOff = @{ $seqTrimHash{$gi} };
 
-    my @seqsToTrimOff = @{ $seqTrimHash{$gi} };
+        $seq = trimPrimers( $seq, $seqsToTrimOff[0], $seqsToTrimOff[1], $gi );
 
-    $seq = trimPrimers( $seq, $seqsToTrimOff[0], $seqsToTrimOff[1], $gi );
+        ### Get taxa info from database
+        $sth->execute($taxid);
 
-    ### Get taxa info from database
-    $sth->execute($taxid);
-
-    my (
-        $species, $superkingdom, $kingdom, $phylum, $class,
-        $order, $family, $genus, $tax_name
-    );
-    while ( my $row = $sth->fetchrow_hashref ) {
-        $species      = "$row->{species_level}";
-        $genus        = "$row->{genus_level}";
-        $family       = "$row->{family_level}";
-        $order        = "$row->{order_level}";
-        $class        = "$row->{class_level}";
-        $phylum       = "$row->{phylum_level}";
-        $kingdom      = "$row->{kingdom_level}";
-        $superkingdom = "$row->{superkingdom_level}";
-        $tax_name     = "$row->{tax_name}";
-    }
-
-    ### print out
-    if ( defined($species) ) {
-
-        # some of the entries in the tax db don't have species labeled >:-|
-        if ( $species eq "NA" ) {
-            $species = $tax_name;
+        my (
+            $species, $superkingdom, $kingdom, $phylum, $class,
+            $order, $family, $genus, $tax_name
+        );
+        while ( my $row = $sth->fetchrow_hashref ) {
+            $species      = "$row->{species_level}";
+            $genus        = "$row->{genus_level}";
+            $family       = "$row->{family_level}";
+            $order        = "$row->{order_level}";
+            $class        = "$row->{class_level}";
+            $phylum       = "$row->{phylum_level}";
+            $kingdom      = "$row->{kingdom_level}";
+            $superkingdom = "$row->{superkingdom_level}";
+            $tax_name     = "$row->{tax_name}";
         }
 
-        # filter out banned words to get rid of uncertain taxonomy
-        if ( $species !~ /($bannedWords)/ || $bannedWords eq "" ) {
+        ### print out
+        if ( defined($species) ) {
 
-            # get rid of any ' in the species name - it messes up FastTree
-            $species =~ s/\'//g;
-
-            $speciesSeqCountHash{$species}++;
-
-            # store taxa info for ampLen printing
-            $taxaHash{$taxid} = join( "\t",
-                $superkingdom, $kingdom, $phylum, $class, $order, $family,
-                $genus, $species );
-
-        # store which taxid matches each gi for use when printing taxonomy table
-            $giTaxaHash{ $taxid . "\t" . $gi . "\t" . $taxaHash{$taxid} } = 1;
-
-       # header with taxa info and unique number to make alignment program happy
-            my $newHeader =
-                ">"
-              . $gi . ":" . "s-"
-              . $species . ":" . "sk-"
-              . $superkingdom . ":" . "k-"
-              . $kingdom . ":" . "p-"
-              . $phylum . ":" . "c-"
-              . $class . ":" . "o-"
-              . $order . ":" . "f-"
-              . $family . ":" . "g-"
-              . $genus . ":" . "_"
-              . $speciesSeqCountHash{$species};
-
-        # put it into printable array if I haven't seen too many of that species
-            if ( $speciesSeqCountHash{$species} <= $maxSeqPerSp ) {
-                push @printable, $newHeader . "\n" . $seq;
+            # some of the entries in the tax db don't have species labeled >:-|
+            if ( $species eq "NA" ) {
+                $species = $tax_name;
             }
 
-            # record how many of each taxa I've seen to print out later
-            $taxCountHash{ $superkingdom . "\t"
-                  . $kingdom . "\t"
-                  . $phylum . "\t"
-                  . $class . "\t"
-                  . $order . "\t"
-                  . $family . "\t"
-                  . $genus . "\t"
-                  . $species }++;
+            # filter out banned words to get rid of uncertain taxonomy
+            if ( $species !~ /($bannedWords)/ || $bannedWords eq "" ) {
 
-            $taxNamesHash{species}{$species}++;
-            $taxNamesHash{genus}{$genus}++;
-            $taxNamesHash{family}{$family}++;
-            $taxNamesHash{order}{$order}++;
-            $taxNamesHash{class}{$class}++;
-            $taxNamesHash{phylum}{$phylum}++;
-            $taxNamesHash{kingdom}{$kingdom}++;
-            $taxNamesHash{superkingdom}{$superkingdom}++;
-            $blastHitCount++;    # store this for primer mismatch printing
+                # get rid of any ' in the species name - it messes up FastTree
+                $species =~ s/\'//g;
+
+                $speciesSeqCountHash{$species}++;
+
+                # store taxa info for ampLen printing
+                $taxaHash{$taxid} = join( "\t",
+                    $superkingdom, $kingdom, $phylum, $class, $order, $family,
+                    $genus, $species );
+
+            # store which taxid matches each gi for use when printing taxonomy table
+                $giTaxaHash{ $taxid . "\t" . $gi . "\t" . $taxaHash{$taxid} } = 1;
+
+        # header with taxa info and unique number to make alignment program happy
+                my $newHeader =
+                    ">"
+                . $gi . ":" . "s-"
+                . $species . ":" . "sk-"
+                . $superkingdom . ":" . "k-"
+                . $kingdom . ":" . "p-"
+                . $phylum . ":" . "c-"
+                . $class . ":" . "o-"
+                . $order . ":" . "f-"
+                . $family . ":" . "g-"
+                . $genus . ":" . "_"
+                . $speciesSeqCountHash{$species};
+
+            # put it into printable array if I haven't seen too many of that species
+                if ( $speciesSeqCountHash{$species} <= $maxSeqPerSp ) {
+                    push @printable, $newHeader . "\n" . $seq;
+                }
+
+                # record how many of each taxa I've seen to print out later
+                $taxCountHash{ $superkingdom . "\t"
+                    . $kingdom . "\t"
+                    . $phylum . "\t"
+                    . $class . "\t"
+                    . $order . "\t"
+                    . $family . "\t"
+                    . $genus . "\t"
+                    . $species }++;
+
+                $taxNamesHash{species}{$species}++;
+                $taxNamesHash{genus}{$genus}++;
+                $taxNamesHash{family}{$family}++;
+                $taxNamesHash{order}{$order}++;
+                $taxNamesHash{class}{$class}++;
+                $taxNamesHash{phylum}{$phylum}++;
+                $taxNamesHash{kingdom}{$kingdom}++;
+                $taxNamesHash{superkingdom}{$superkingdom}++;
+                $blastHitCount++;    # store this for primer mismatch printing
+            }
         }
-    }
-    else {
-        print STDERR
-          "bsPrimerTree.pl: Taxonomy not found for gi: $gi, taxid: $taxid\n";
-        print STDERR "Make sure your blast database and taxonomy database "
-          . "were downloaded at about the same time\n";
+        else {
+            print STDERR
+            "bsPrimerTree.pl: Taxonomy not found for gi: $gi, taxid: $taxid\n";
+            print STDERR "Make sure your blast database and taxonomy database "
+            . "were downloaded at about the same time\n";
+        }
     }
 }
 

@@ -539,18 +539,12 @@ sub mismatchCounter {
       if ($debug);
     if ( $qstart != $primerShouldStart ) {
         if ( $qstart == $primerShouldStart + 1 ) {
-
-            #        $primerRealSeq = "N" . $primerRealSeq;
             $hitRealSeq = "Z" . $hitRealSeq;
         }
         else {
             my $seqBaseNumberToGet = $sstart -
               ( $qstart - $primerShouldStart );    #base position is 1-based
             if ( $seqBaseNumberToGet > 0 ) {
-
-#        my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], 0, ($qstart - $primerShouldStart)); #substr is 0-based
-#        $primerRealSeq = $seqToAdd . $primerRealSeq;
-
                 my $seqRange = $seqBaseNumberToGet . "-" . ( $sstart - 1 );
 
                 my $getSeqCmd =
@@ -604,8 +598,6 @@ sub mismatchCounter {
       if ($debug);
     if ( $qend != $primerShouldEnd ) {
         if ( $qend == $primerShouldEnd - 1 ) {
-
-            #        $primerRealSeq = $primerRealSeq . "N";
             $hitRealSeq = $hitRealSeq . "Z";
         }
         else {
@@ -624,12 +616,8 @@ sub mismatchCounter {
             $numberOfBlastcmdCalls++;
             print STDERR $getSeqCmd, "\tcommand to get end\n" if ($debug);
             chomp $seqBases;
-
-#if(length($seqBases) == $seqEndNumberToGet - $send) { # if $seqRange is outside of available sequence, the full sequence is returned
             $seqBases   = uc($seqBases);
             $hitRealSeq = $hitRealSeq . $seqBases;
-
-            #}
 
   # Check if the full sequence was not available, and fill in with N's otherwise
             if ( length($hitRealSeq) < length($primerRealSeq) ) {
@@ -637,10 +625,6 @@ sub mismatchCounter {
                   "N" x ( length($primerRealSeq) - length($hitRealSeq) )
                   . $hitRealSeq;
             }
-
-#        my $seqToAdd = substr($primerHash{$qseqid}[$primerArrayIndex], -1 * ($primerShouldEnd - $qend)); #substr is 0-based
-#        $primerRealSeq = $primerRealSeq . $seqToAdd;
-#}
         }
     }
 
@@ -649,7 +633,6 @@ sub mismatchCounter {
       if ($debug);
 
     # Count the mismatches in the aligned portion of the primer
-
     # no need to count mismatches if identical
     # This doesn't work if ambiguous bases are present, but that's fine
     if ( $primerRealSeq ne $hitRealSeq ) {
@@ -673,7 +656,6 @@ sub mismatchCounter {
             if ( $sBase !~ /[$degenerateRegexHash{$qBase}]/ ) {
 
          # Need to complement the mismatch since we revComp'd the sequence above
-         # if it was for: and if it is rev: then we still need to complement it
                 $mismatchLocs .= "," . ( $i + 1 ) . "_" . revComp($sBase);
                 if ( $i <= $primerTipLen ) {
                     $mismatch3Prime++;

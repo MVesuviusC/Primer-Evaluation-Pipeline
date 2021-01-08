@@ -29,6 +29,9 @@ amplicon_len <- function(amplicon_data, target_taxa, target_level) {
 #' }
 plot_amplicon_len <- function(bsPrimerTree) {
   amplicon_df <- bsPrimerTree$amplicon_lengths
+  # In the current table, the count column is the number of hits
+  # Plotting using this over represents commonly sequenced species
+  amplicon_df$count <- 1
   print(ggplot2::ggplot(amplicon_df,
                         ggplot2::aes(x = as.numeric(length),
                                      y = count,

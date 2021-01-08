@@ -117,13 +117,13 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
       output$primer_mismatches %>%
       dplyr::filter(OnTarget == "On-target") %>%
       dplyr::pull(mismatch5Prime) %>%
-      mean()
+      mean(na.rm = TRUE)
 
     output$summary_table$MeanOnTargetTotalMismatches <-
       output$primer_mismatches %>%
       dplyr::filter(OnTarget == "On-target") %>%
       dplyr::pull(mismatchTotal) %>%
-      mean()
+      mean(na.rm = TRUE)
 
     # Count of all species that are amplifiable
     output$summary_table$AllSpeciesAmplifiableCount <-
