@@ -92,7 +92,7 @@ load_find_target_data <- function(bsPrimerTree, output_dir) {
                                                  target_taxa = target_taxa,
                                                  target_level = target_level)
 
-  bsPrimerTree$gi_taxonomy <- read_data("giTaxonomyFile.txt")
+  bsPrimerTree$acc_taxonomy <- read_data("accTaxonomyFile.txt")
 
   bsPrimerTree$primer_mismatches <-
     primer_mismatch_count(read_data("primerMismatches.txt"),

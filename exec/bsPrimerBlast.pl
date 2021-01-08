@@ -106,7 +106,7 @@ my %degenerateRegexHash =
 my %primerHash; # primerHash{primerName} = (forward, reverse) reverse is revComp
 my $primerOutFileNum  = 1;
 my $nCount            = 20;
-my $lastSgi           = "";
+my $lastSacc           = "";
 my $lastLine          = "";
 my $blastEntryCounter = 1;
 my %resultsHash;
@@ -185,7 +185,7 @@ for ( my $i = 1 ; $i <= $primerOutFileNum ; $i++ ) {
     }
 
     my $blastCmd =
-        $blastVer . " " . "-db " 
+        $blastVer . " " . "-db "
       . $blastDb . " "
       . "-query "
       . $tempDir . "/"
@@ -202,7 +202,7 @@ for ( my $i = 1 ; $i <= $primerOutFileNum ; $i++ ) {
       . "-penalty -1 "
       . "-gapopen 2 "
       . "-gapextend 1 "
-      . "-outfmt \"6 qseqid sgi qlen qstart qend sstart send slen sstrand qseq sseq staxids\" "
+      . "-outfmt \"6 qseqid sacc qlen qstart qend sstart send slen sstrand qseq sseq staxids\" "
       . "-ungapped "
       . "-sum_stats true";
 
@@ -215,14 +215,14 @@ for ( my $i = 1 ; $i <= $primerOutFileNum ; $i++ ) {
         if ( scalar(@parsed) > 0 ) {
             my $shouldBeIncluded = 1;
             my (
-                $qseqid,             $sgi,            $staxids,
+                $qseqid,             $sacc,            $staxids,
                 $ampStart,           $ampEnd,         $ampLength,
                 $mismatchLoc,        $mismatch3Prime, $lastMismatchLoc,
                 $lastMismatch3Prime, $qseq,           $sseq,
                 $lastQseq,           $lastSseq
             ) = @parsed;
-            if ( exists( $resultsHash{ $qseqid . "\t" . $sgi } ) ) {
-                for my $result ( @{ $resultsHash{ $qseqid . "\t" . $sgi } } ) {
+            if ( exists( $resultsHash{ $qseqid . "\t" . $sacc } ) ) {
+                for my $result ( @{ $resultsHash{ $qseqid . "\t" . $sacc } } ) {
                     my @resultArray = split "\t", $result;
 
                     #if($resultArray[6] =~ /[fr]/) {
@@ -238,7 +238,7 @@ for ( my $i = 1 ; $i <= $primerOutFileNum ; $i++ ) {
                 }
             }
             if ( $shouldBeIncluded == 1 ) {
-                push @{ $resultsHash{ $qseqid . "\t" . $sgi } },
+                push @{ $resultsHash{ $qseqid . "\t" . $sacc } },
                   join( "\t", @parsed );
             }
         }
@@ -254,7 +254,7 @@ for ( my $i = 1 ; $i <= $primerOutFileNum ; $i++ ) {
 print join(
     "\t",
     "qSeqId",                    # query ID
-    "sGi",                       # hit gi
+    "sacc",                       # hit acc
     "sTaxids",                   # taxid of hit - can be multiple
     "sAmpStart",                 # start of amplicon location
     "sAmpEnd",                   # end amplicon location
@@ -270,8 +270,8 @@ print join(
   ),                             # other end hit seq
   "\n";
 
-for my $primerGi ( keys %resultsHash ) {
-    for my $result ( @{ $resultsHash{$primerGi} } ) {
+for my $primeracc ( keys %resultsHash ) {
+    for my $result ( @{ $resultsHash{$primeracc} } ) {
         print $result, "\n";
     }
 }
@@ -423,14 +423,14 @@ sub uniq {
 sub parseBlast {
     my $blastData = shift;
     my (
-        $qseqid, $sgi,  $qlen,    $qstart, $qend, $sstart,
+        $qseqid, $sacc,  $qlen,    $qstart, $qend, $sstart,
         $send,   $slen, $sstrand, $qseq,   $sseq, $staxids
     ) = split "\t", $blastData;
     my @output;
 
-    if ( $sgi eq $lastSgi ) {
+    if ( $sacc eq $lastSacc ) {
         my (
-            $lastQseqid,  $lastSgi,    $lastQlen, $lastQstart,
+            $lastQseqid,  $lastSacc,    $lastQlen, $lastQstart,
             $lastQend,    $lastSstart, $lastSend, $lastSlen,
             $lastSstrand, $lastQseq,   $lastSseq, $lastStaxids
         ) = split "\t", $lastLine;
@@ -446,9 +446,9 @@ sub parseBlast {
             # count primer mismatches
             my ( $lastMismatchLoc, $lastMismatch3Prime ) =
               mismatchCounter($lastLine)
-              ; #$lastQseq, $lastSseq, $lastQstart, $lastQend, $lastQseqid, $lastSgi, $lastSstart);
+              ; #$lastQseq, $lastSseq, $lastQstart, $lastQend, $lastQseqid, $lastSacc, $lastSstart);
             my ( $mismatchLoc, $mismatch3Prime ) = mismatchCounter($blastData)
-              ;    #$qseq, $sseq, $qstart, $qend, $qseqid, $sgi);
+              ;    #$qseq, $sseq, $qstart, $qend, $qseqid, $sacc);
 
             my $mismatchCountF = 0;
             if ( $lastMismatchLoc ne "" ) {
@@ -468,7 +468,7 @@ sub parseBlast {
             {
                 @output = (
                     $qseqid,             # query ID
-                    $sgi,                # hit gi
+                    $sacc,                # hit acc
                     $staxids,            # taxid of hit - can be multiple
                     $hitPositions[0],    # start of amplicon location
                     $hitPositions[3],    # end amplicon location
@@ -487,14 +487,14 @@ sub parseBlast {
         }
     }
     $lastLine = $blastData;
-    $lastSgi  = $sgi;
+    $lastSacc  = $sacc;
     return @output;
 }
 
 sub mismatchCounter {
     my $blastData = shift;
     my (
-        $qseqid, $sgi,  $qlen,    $qstart, $qend, $sstart,
+        $qseqid, $sacc,  $qlen,    $qstart, $qend, $sstart,
         $send,   $slen, $sstrand, $qseq,   $sseq, $staxids
     ) = split "\t", $blastData;
 
@@ -548,10 +548,10 @@ sub mismatchCounter {
                 my $seqRange = $seqBaseNumberToGet . "-" . ( $sstart - 1 );
 
                 my $getSeqCmd =
-                    "blastdbcmd -target_only -outfmt \"%s\" -db " 
+                    "blastdbcmd -target_only -outfmt \"%s\" -db "
                   . $blastDb
                   . " -entry "
-                  . $sgi
+                  . $sacc
                   . " -range "
                   . $seqRange;
                 print STDERR $getSeqCmd, "For start\n" if ($debug);
@@ -567,10 +567,10 @@ sub mismatchCounter {
                 my $seqRange = "1-" . ( $sstart - 1 );
 
                 my $getSeqCmd =
-                    "blastdbcmd -target_only -outfmt \"%s\" -db " 
+                    "blastdbcmd -target_only -outfmt \"%s\" -db "
                   . $blastDb
                   . " -entry "
-                  . $sgi
+                  . $sacc
                   . " -range "
                   . $seqRange;
                 print STDERR $getSeqCmd, "For partial start\n" if ($debug);
@@ -606,10 +606,10 @@ sub mismatchCounter {
             my $seqRange = ( $send + 1 ) . "-" . $seqEndNumberToGet;
 
             my $getSeqCmd =
-                "blastdbcmd -target_only -outfmt \"%s\" -db " 
+                "blastdbcmd -target_only -outfmt \"%s\" -db "
               . $blastDb
               . " -entry "
-              . $sgi
+              . $sacc
               . " -range "
               . $seqRange;
             my $seqBases = `$getSeqCmd`;

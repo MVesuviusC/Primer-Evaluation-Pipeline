@@ -18,7 +18,7 @@ display_tree <- function(bsPrimerTree, ...) {
   bsPrimerTree$tree$tip.label <- gsub(":.+", "", bsPrimerTree$tree$tip.label)
 
   print(primerTree::plot_tree_ranks(tree = bsPrimerTree$tree,
-                                    taxonomy = bsPrimerTree$gi_taxonomy,
+                                    taxonomy = bsPrimerTree$acc_taxonomy,
                                     ...))
 }
 

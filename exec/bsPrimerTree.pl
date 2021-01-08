@@ -75,7 +75,7 @@ my %alignedSeqHash;
 my %distHash;
 my %ampLenHash;
 my %taxaHash;
-my %giTaxaHash;
+my %accTaxaHash;
 my $blastHitCount = 0;
 
 ##############################
@@ -120,7 +120,7 @@ while ( my $input = <$inputFH> ) {
     chomp $input;
     my (
         $qSeqId,                      # query ID
-        $sGi,                         # hit gi
+        $sacc,                         # hit acc
         $sTaxids,                     # taxid of hit - can be multiple
         $sAmpStart,                   # start of amplicon location
         $sAmpEnd,                     # end amplicon location
@@ -138,7 +138,7 @@ while ( my $input = <$inputFH> ) {
 
 # some taxids have two taxids separated by ";" - need to deal with this better at some point
     if ($sTaxids !~ /;/) {
-        print $blastDbInputFile $sGi, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
+        print $blastDbInputFile $sacc, "\t", $sAmpStart, "-", $sAmpEnd, "\n";
 
         # store amplicon length until I have taxa info
         $ampLenHash{$sTaxids}{$sAmpLen}++;
@@ -167,7 +167,7 @@ while ( my $input = <$inputFH> ) {
         $mismatchLocsHash{$sTaxids}{$primer2Dir}{$primer2MismatchLocNums}++;
 
     # Store hit seq and other end hit seqs for each hit so I can trim them off later
-        @{ $seqTrimHash{$sGi} } = ( $primer1SSeq, $primer2SSeq );
+        @{ $seqTrimHash{$sacc} } = ( $primer1SSeq, $primer2SSeq );
     }
 }
 
@@ -205,7 +205,7 @@ my $query = 'SELECT species_level, genus_level, family_level, order_level,
 my $sth = $dbh->prepare($query);
 
 ### Put together command to get sequences
-### output will have header with >gi_taxid \n sequence for each query
+### output will have header with >acc_taxid \n sequence for each query
 ### perl code switches "@" with newline
 my $blastDBCmdCmd =
     "blastdbcmd "
@@ -214,7 +214,7 @@ my $blastDBCmdCmd =
   . " -entry_batch "
   . $outDir
   . "seqsToGet.txt "
-  . "-outfmt \">\%g_\%T\@\%s\" "
+  . "-outfmt \">\%a_\%T\@\%s\" "
   . "| perl -pe \'s/\@/\n/\' ";
 
 ### Array of data to print to speed up the program
@@ -231,20 +231,20 @@ while ( my $blastInput = <$blastDbCmdResponse> ) {
     $blastInput =~ s/^>//;
     my ( $header, $seq ) = split "\n", $blastInput;
 
-    my $gi = $header;
-    $gi =~ s/_.+//;
+    my $acc = $header;
+    $acc =~ s/_.+//;
 
     my $taxid = $header;
     $taxid =~ s/.+_//;
 
     # some entries have more than 1 taxid - need to deal with this better at some point....
     if($taxid !~ /;/) {
-    
+
         ### use the subject sequences given by bsPrimerBlast to trim primer sequence aligned portion off sequence
 
-        my @seqsToTrimOff = @{ $seqTrimHash{$gi} };
+        my @seqsToTrimOff = @{ $seqTrimHash{$acc} };
 
-        $seq = trimPrimers( $seq, $seqsToTrimOff[0], $seqsToTrimOff[1], $gi );
+        $seq = trimPrimers( $seq, $seqsToTrimOff[0], $seqsToTrimOff[1], $acc );
 
         ### Get taxa info from database
         $sth->execute($taxid);
@@ -286,13 +286,13 @@ while ( my $blastInput = <$blastDbCmdResponse> ) {
                     $superkingdom, $kingdom, $phylum, $class, $order, $family,
                     $genus, $species );
 
-            # store which taxid matches each gi for use when printing taxonomy table
-                $giTaxaHash{ $taxid . "\t" . $gi . "\t" . $taxaHash{$taxid} } = 1;
+            # store which taxid matches each acc for use when printing taxonomy table
+                $accTaxaHash{ $taxid . "\t" . $acc . "\t" . $taxaHash{$taxid} } = 1;
 
         # header with taxa info and unique number to make alignment program happy
                 my $newHeader =
                     ">"
-                . $gi . ":" . "s-"
+                . $acc . ":" . "s-"
                 . $species . ":" . "sk-"
                 . $superkingdom . ":" . "k-"
                 . $kingdom . ":" . "p-"
@@ -331,24 +331,24 @@ while ( my $blastInput = <$blastDbCmdResponse> ) {
         }
         else {
             print STDERR
-            "bsPrimerTree.pl: Taxonomy not found for gi: $gi, taxid: $taxid\n";
+            "bsPrimerTree.pl: Taxonomy not found for acc: $acc, taxid: $taxid\n";
             print STDERR "Make sure your blast database and taxonomy database "
             . "were downloaded at about the same time\n";
         }
     }
 }
 
-# Print out table with gi and taxa info for primerTree tree plotting
-open my $giTaxaFile, ">", $outDir . "giTaxonomyFile.txt";
+# Print out table with acc and taxa info for primerTree tree plotting
+open my $accTaxaFile, ">", $outDir . "accTaxonomyFile.txt";
 
-# header for giTaxaFile
-print $giTaxaFile
-"taxId\tgi\tsuperkingdom\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\n";
+# header for accTaxaFile
+print $accTaxaFile
+"taxId\tacc\tsuperkingdom\tkingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\n";
 
-for my $giTaxaEntry ( keys %giTaxaHash ) {
-    print $giTaxaFile $giTaxaEntry, "\n";
+for my $accTaxaEntry ( keys %accTaxaHash ) {
+    print $accTaxaFile $accTaxaEntry, "\n";
 }
-close $giTaxaFile;
+close $accTaxaFile;
 
 # Print out information on how many mismatches there are
 open my $mismatchFile, ">", $outDir . "primerMismatches.txt";
@@ -391,7 +391,7 @@ for my $taxid ( keys %taxaHash ) {
             } keys( %{ $mismatchLocsHash{$taxid}{$direction} } );
 
             if ( $mismatchLocKeys[0] ne "") { # there is a mismatch present
-                my ( $mismatchNums, $sGi ) = split( "\t", $mismatchLocKeys[0] );
+                my ( $mismatchNums, $sacc ) = split( "\t", $mismatchLocKeys[0] );
                 my @mismatchLocArray = split ",", $mismatchNums;
 
                 for my $loc (@mismatchLocArray) {
@@ -530,7 +530,7 @@ while ( my $fasta = <$alignedFastaFH> ) {
     my $seq = join( "", @sequences );
     $seq = lc($seq);
 
-    my ( $gi, $sp, $sk, $k, $p, $c, $o, $f, $g, undef ) = split ":", $header;
+    my ( $acc, $sp, $sk, $k, $p, $c, $o, $f, $g, undef ) = split ":", $header;
 
     for my $fastaEntry ( keys %alignedSeqHash ) {
 
@@ -657,36 +657,36 @@ sub trimPrimers {
     my $seq     = $_[0];
     my $primer1 = $_[1];
     my $primer2 = $_[2];
-    my $gi      = $_[3];
+    my $acc      = $_[3];
 
     my $RCprimer1 = revComp($primer1);
 
     if ( $seq =~ /^$primer1/ ) {    # primer 1 is at 5' end
         $seq =~ s/^$primer1//;
-        $seq = trimPrimer2( $seq, $primer2, $gi, "3prime" );
+        $seq = trimPrimer2( $seq, $primer2, $acc, "3prime" );
     }
     elsif ( $seq =~ /^$RCprimer1/ ) {    # primer 1 is at 5' end RC
         $seq =~ s/^$RCprimer1//;
-        $seq = trimPrimer2( $seq, $primer2, $gi, "3prime" );
+        $seq = trimPrimer2( $seq, $primer2, $acc, "3prime" );
     }
     elsif ( $seq =~ /$primer1$/ ) {      # primer 1 is at 3' end
         $seq =~ s/$primer1$//;
-        $seq = trimPrimer2( $seq, $primer2, $gi, "5prime" );
+        $seq = trimPrimer2( $seq, $primer2, $acc, "5prime" );
     }
     elsif ( $seq =~ /$RCprimer1$/ ) {    # primer 1 is at 3' end RC
         $seq =~ s/$RCprimer1$//;
-        $seq = trimPrimer2( $seq, $primer2, $gi, "5prime" );
+        $seq = trimPrimer2( $seq, $primer2, $acc, "5prime" );
     }
     else {                               # primer 1 not found
-        print STDERR "First primer not found for trimming\n", $gi, "\t",
+        print STDERR "First primer not found for trimming\n", $acc, "\t",
           $primer1, "\t", $seq, "\n\n";
-        my $newSeq = trimPrimer2( $seq, $primer2, $gi, "3prime" );
+        my $newSeq = trimPrimer2( $seq, $primer2, $acc, "3prime" );
 
         if ( length($newSeq) != length($seq) ) {    # primer2 was trimmed
             $seq = $newSeq;
         }
         else {    # primer2 was not trimmed, try other end
-            $seq = trimPrimer2( $seq, $primer2, $gi, "5prime" );
+            $seq = trimPrimer2( $seq, $primer2, $acc, "5prime" );
         }
     }
     return $seq;
@@ -695,7 +695,7 @@ sub trimPrimers {
 sub trimPrimer2 {
     my $seq     = $_[0];
     my $primer2 = $_[1];
-    my $gi      = $_[2];
+    my $acc      = $_[2];
     my $end     = $_[3];
 
     my $RCprimer2 = revComp($primer2);
@@ -709,7 +709,7 @@ sub trimPrimer2 {
         }
         else {
             print STDERR "Second sequence not found for trimming\n\n";
-            print STDERR $gi, "\t", $primer2, "\t", $seq, "\n";
+            print STDERR $acc, "\t", $primer2, "\t", $seq, "\n";
         }
     }
     else {
@@ -721,7 +721,7 @@ sub trimPrimer2 {
         }
         else {
             print STDERR "Second sequence not found for trimming\n\n";
-            print STDERR $gi, "\t", $primer2, "\t", $seq, "\n";
+            print STDERR $acc, "\t", $primer2, "\t", $seq, "\n";
         }
     }
     return $seq;

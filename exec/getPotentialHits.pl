@@ -76,7 +76,7 @@ $revLength = length($primerR);
 
 ##############################
 ### Pull in taxa info and make hash of form:
-### $taxaHash{gi}{taxaLevel or taxId} = taxon
+### $taxaHash{acc}{taxaLevel or taxId} = taxon
 
 open my $taxaFH, "$taxaIn" or die "Could not open taxonomy input\n";
 my @header = split "\t", <$taxaFH>;
@@ -114,9 +114,9 @@ while(my $input = <$taxaFH>) {
 $blastIn =~ s/(.*\.gz)\s*$/gzip -dc < $1|/;
 open BLAST, "$blastIn" or die "Could not open BLAST input\n";
 
-# want: query subjectGi subjectOrder subjectFamily subjectGenus subjectSpecies
+# want: query subjectacc subjectOrder subjectFamily subjectGenus subjectSpecies
 
-#print "query\tsubjectGi\tqueryKingdom\tqueryPhylum\tqueryClass\tqueryOrder\tqueryFamily\tquerySpecies\tsubjectOrder\tsubjectFamily\tsubjectGenus\tsubjectSpecies\n";
+#print "query\tsubjectacc\tqueryKingdom\tqueryPhylum\tqueryClass\tqueryOrder\tqueryFamily\tquerySpecies\tsubjectOrder\tsubjectFamily\tsubjectGenus\tsubjectSpecies\n";
 
 while (my $input = <BLAST>) {
     chomp $input;
@@ -211,11 +211,11 @@ Print out some "helpful" information
 
 =item B<--taxaIn>
 
-Taxonomic information on BLAST hits. Should be the gi number followed by columns of the taxonoic information. Needs to include a header line.
+Taxonomic information on BLAST hits. Should be the acc number followed by columns of the taxonoic information. Needs to include a header line.
 
 =item B<--blastIn>
 
-Blast input. Should be output from BLAST with -outfmt "7 qseqid sgi length qlen sstart send slen"
+Blast input. Should be output from BLAST with -outfmt "7 qseqid sacc length qlen sstart send slen"
 
 =item B<--primerFile>
 
