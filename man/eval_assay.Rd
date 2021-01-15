@@ -17,6 +17,9 @@ eval_assay(
   threads = 1,
   banned_words = banned_word_list,
   max_aligned_seqs = 5000,
+  num_permutations = 500,
+  min_amp_len = 0,
+  max_amp_len = 2000,
   clean_up = TRUE,
   ...
 )
@@ -49,6 +52,13 @@ with uncertain taxonomy}
 
 \item{max_aligned_seqs}{Maximum number of sequences to keep for alignment
 and data processing}
+
+\item{num_permutations}{Maximum number of primer variants to include for
+primers with ambiguous bases}
+
+\item{min_amp_len}{minimum length of amplicon to be included in evaluation}
+
+\item{max_amp_len}{maximum length of amplicon to be included in evaluation}
 
 \item{clean_up}{logical, if TRUE, intermediate files will be removed}
 
@@ -86,6 +96,7 @@ test <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
                    assay_name = "testRun",
                    target_taxa = "Blastocystis",
                    target_level = "genus",
+                   max_amp_len = 2000,
                    threads = 4)
 }
 }

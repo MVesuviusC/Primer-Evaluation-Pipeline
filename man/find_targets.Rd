@@ -14,7 +14,10 @@ find_targets(
   threads,
   output_dir,
   banned_words,
-  max_aligned_seqs
+  max_aligned_seqs,
+  num_permutations,
+  min_amp_len,
+  max_amp_len
 )
 }
 \arguments{
@@ -39,6 +42,13 @@ with uncertain taxonomy}
 
 \item{max_aligned_seqs}{Maximum number of sequences to keep for alignment
 and data processing}
+
+\item{num_permutations}{Maximum number of primer variants to include for
+primers with ambiguous bases}
+
+\item{min_amp_len}{minimum length of amplicon to be included in evaluation}
+
+\item{max_amp_len}{maximum length of amplicon to be included in evaluation}
 }
 \value{
 none

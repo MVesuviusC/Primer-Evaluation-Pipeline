@@ -22,7 +22,7 @@ my $help;
 my $primerInput;
 my $tempDir                 = ".";
 my $maxPrimersPerFile       = 100;
-my $maxPrimerVariantsTested = 2000;
+my $maxPrimerVariantsTested = 500;
 my $forward;
 my $reverse;
 my $primerName = "primer";
@@ -202,7 +202,7 @@ for ( my $i = 1 ; $i <= $primerOutFileNum ; $i++ ) {
       . "-penalty -1 "
       . "-gapopen 2 "
       . "-gapextend 1 "
-      . "-outfmt \"6 qseqid sacc qlen qstart qend sstart send slen sstrand qseq sseq staxids\" "
+      . "-outfmt \"6 qseqid saccver qlen qstart qend sstart send slen sstrand qseq sseq staxids\" "
       . "-ungapped "
       . "-sum_stats true";
 
@@ -254,7 +254,7 @@ for ( my $i = 1 ; $i <= $primerOutFileNum ; $i++ ) {
 print join(
     "\t",
     "qSeqId",                    # query ID
-    "sacc",                       # hit acc
+    "sacc",                      # hit acc
     "sTaxids",                   # taxid of hit - can be multiple
     "sAmpStart",                 # start of amplicon location
     "sAmpEnd",                   # end amplicon location
@@ -349,8 +349,10 @@ sub addPrimersToHash {
     if ($verbose) {
         print STDERR $primerCombinations, " primer combinations for ", $name,
           "\n";
-        print STDERR "A maximum of ", $maxPrimerVariantsTested,
-          " combinations will be tested.\n";
+        if($primerCombinations > $maxPrimerVariantsTested) {
+          print STDERR "A maximum of ", $maxPrimerVariantsTested,
+            " combinations will be tested.\n";
+        }
     }
 }
 

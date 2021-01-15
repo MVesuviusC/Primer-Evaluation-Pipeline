@@ -12,12 +12,17 @@
 #'   with uncertain taxonomy
 #' @param max_aligned_seqs Maximum number of sequences to keep for alignment
 #'  and data processing
+#' @param num_permutations Maximum number of primer variants to include for
+#'  primers with ambiguous bases
+#' @param min_amp_len minimum length of amplicon to be included in evaluation
+#' @param max_amp_len maximum length of amplicon to be included in evaluation
 #'
 #' @return none
 #'
 find_targets <- function(forward, reverse, assay_name, blast_path, blast_db,
                          tax_db, threads, output_dir, banned_words,
-                         max_aligned_seqs) {
+                         max_aligned_seqs, num_permutations, min_amp_len,
+                         max_amp_len) {
 
   package_dir <- find.package("bsPrimerTree")
 
@@ -28,7 +33,6 @@ find_targets <- function(forward, reverse, assay_name, blast_path, blast_db,
   # put together the command to run
   bsPrimerBlast_path <- paste(package_dir, "/exec/bsPrimerBlast.pl", sep = "")
   bsPrimerTree_path <- paste(package_dir, "/exec/bsPrimerTree.pl", sep = "")
-  out_path <- paste(output_dir, "/bsPrimerTreeOut", sep = "")
   banned_words_with_quotes <- paste("\'", banned_words, "\'", sep = "")
 
   primer_blast_cmd <- paste("perl",
@@ -40,8 +44,9 @@ find_targets <- function(forward, reverse, assay_name, blast_path, blast_db,
                             "--blastDb", blast_db,
                             "--blastVer", blast_path,
                             "--proc", threads,
-                            "--minAmpLen 50",
-                            "--maxAmpLen 1000",
+                            "--maxPrimerVariantsTested", num_permutations,
+                            "--minAmpLen", min_amp_len,
+                            "--maxAmpLen", max_amp_len,
                             "--verbose",
                             "|",
                             "perl",
@@ -49,7 +54,7 @@ find_targets <- function(forward, reverse, assay_name, blast_path, blast_db,
                             "--inFile -",
                             "--blastDb", blast_db,
                             "--taxDb", tax_db,
-                            "--outDir", out_path,
+                            "--outDir", output_dir,
                             "--threads", threads,
                             "--maxSeqsPerSpecies 4",
                             "--maxAlignedSeqs", max_aligned_seqs,
@@ -77,7 +82,7 @@ load_find_target_data <- function(bsPrimerTree, output_dir) {
 
   read_data <- function(in_file) {
     read.delim(paste(output_dir,
-                     "/bsPrimerTreeOut/",
+                     "/",
                      in_file,
                      sep = ""),
                stringsAsFactors = FALSE,
@@ -108,11 +113,11 @@ load_find_target_data <- function(bsPrimerTree, output_dir) {
     dplyr::select(-Count)
 
   bsPrimerTree$alignment <- ape::read.dna(paste(output_dir,
-                                     "/bsPrimerTreeOut/seqsWithTaxaAligned.fasta",
+                                     "/seqsWithTaxaAligned.fasta",
                                      sep = ""), format = "fasta")
 
   bsPrimerTree$tree <- ape::read.tree(paste(output_dir,
-                                "/bsPrimerTreeOut/tree.nwk",
+                                "/tree.nwk",
                                 sep = ""))
 
   bsPrimerTree

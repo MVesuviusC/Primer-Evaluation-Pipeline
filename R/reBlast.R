@@ -21,7 +21,7 @@ reblast <- function(output_dir, blast_exe, blast_db, target_taxa, threads) {
             "-db", blast_db,
             "-query", input_file,
             "-num_threads", threads,
-            "-outfmt \"7 qseqid staxid score length qstart qend qlen sstart send slen sacc\"",
+            "-outfmt \"7 qseqid staxid score length qstart qend qlen sstart send slen saccver\"",
             "-max_hsps 1",
             "-max_target_seqs 10000",
             ">>", output_file)
@@ -44,7 +44,7 @@ unique_seqs <- function(output_dir, target_taxa) {
   # put together the command to run
   # Paths to files and scripts
   input_path <- paste(output_dir,
-                      "/bsPrimerTreeOut/seqsWithTaxa.fasta",
+                      "/seqsWithTaxa.fasta",
                       sep = "")
   filterFastaNs_path <- paste(package_dir,
                               "/exec/filterFastaNs.pl",

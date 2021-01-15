@@ -17,6 +17,11 @@ display_tree <- function(bsPrimerTree, ...) {
   # this data is kept because it is used in other parts of the analysis
   bsPrimerTree$tree$tip.label <- gsub(":.+", "", bsPrimerTree$tree$tip.label)
 
+  # primerTree expects a column named gi, not acc
+  # functionally, the gi is equivalent to the acc #
+  bsPrimerTree$acc_taxonomy <- bsPrimerTree$acc_taxonomy %>%
+    dplyr::rename(gi = acc)
+
   print(primerTree::plot_tree_ranks(tree = bsPrimerTree$tree,
                                     taxonomy = bsPrimerTree$acc_taxonomy,
                                     ...))

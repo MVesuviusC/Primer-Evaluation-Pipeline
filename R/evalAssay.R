@@ -23,6 +23,10 @@
 #'   with uncertain taxonomy
 #' @param max_aligned_seqs Maximum number of sequences to keep for alignment
 #'  and data processing
+#' @param num_permutations Maximum number of primer variants to include for
+#'  primers with ambiguous bases
+#' @param min_amp_len minimum length of amplicon to be included in evaluation
+#' @param max_amp_len maximum length of amplicon to be included in evaluation
 #' @param clean_up logical, if TRUE, intermediate files will be removed
 #' @param ... other arguments
 #'
@@ -51,6 +55,7 @@
 #'                    assay_name = "testRun",
 #'                    target_taxa = "Blastocystis",
 #'                    target_level = "genus",
+#'                    max_amp_len = 2000,
 #'                    threads = 4)
 #' }
 eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
@@ -60,7 +65,8 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                                           random_alphanumeric(20),
                                           sep = ""),
                        threads = 1, banned_words = banned_word_list,
-                       max_aligned_seqs = 5000, clean_up = TRUE, ...) {
+                       max_aligned_seqs = 5000, num_permutations = 500,
+                       min_amp_len = 0, max_amp_len = 2000, clean_up = TRUE, ...) {
   # Output
   output <- list()
 
@@ -99,7 +105,10 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                  threads = threads,
                  output_dir = output_dir,
                  banned_words = banned_words,
-                 max_aligned_seqs = max_aligned_seqs)
+                 max_aligned_seqs = max_aligned_seqs,
+                 num_permutations = num_permutations,
+                 min_amp_len = min_amp_len,
+                 max_amp_len = max_amp_len)
 
     # Load the files written out by bsPrimerTree into the output object
     output <- load_find_target_data(bsPrimerTree = output,

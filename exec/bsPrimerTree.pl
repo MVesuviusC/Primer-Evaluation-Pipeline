@@ -214,7 +214,7 @@ my $blastDBCmdCmd =
   . " -entry_batch "
   . $outDir
   . "seqsToGet.txt "
-  . "-outfmt \">\%a_\%T\@\%s\" "
+  . "-outfmt \">\%a-\%T\@\%s\" "
   . "| perl -pe \'s/\@/\n/\' ";
 
 ### Array of data to print to speed up the program
@@ -232,16 +232,16 @@ while ( my $blastInput = <$blastDbCmdResponse> ) {
     my ( $header, $seq ) = split "\n", $blastInput;
 
     my $acc = $header;
-    $acc =~ s/_.+//;
+    $acc =~ s/-.+//;
 
     my $taxid = $header;
-    $taxid =~ s/.+_//;
+    $taxid =~ s/.+-//;
 
     # some entries have more than 1 taxid - need to deal with this better at some point....
     if($taxid !~ /;/) {
 
         ### use the subject sequences given by bsPrimerBlast to trim primer sequence aligned portion off sequence
-
+        print STDERR "blastdbcmdInput\t", $blastInput, "\nacc:", $acc, "\ttaxid:", $taxid, "\n" if($debug);
         my @seqsToTrimOff = @{ $seqTrimHash{$acc} };
 
         $seq = trimPrimers( $seq, $seqsToTrimOff[0], $seqsToTrimOff[1], $acc );
