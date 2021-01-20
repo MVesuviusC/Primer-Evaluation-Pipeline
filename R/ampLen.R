@@ -32,6 +32,7 @@ plot_amplicon_len <- function(bsPrimerTree) {
   # In the current table, the count column is the number of hits
   # Plotting using this over represents commonly sequenced species
   amplicon_df$count <- 1
+  bin_size <- 50
   print(ggplot2::ggplot(amplicon_df,
                         ggplot2::aes(x = as.numeric(length),
                                      y = count,
@@ -44,9 +45,11 @@ plot_amplicon_len <- function(bsPrimerTree) {
                               ncol = 1,
                               scales = "free_y") +
           ggplot2::labs(fill = "On target") +
-          ggplot2::scale_x_continuous(breaks = round(seq(0,
-                                                         max(amplicon_df$length),
-                                                         by = 50),
-                                                     1))
+          ggplot2::scale_x_continuous(
+            limits = c(0, max(amplicon_df$length + bin_size - 1)),
+            breaks = round(seq(0,
+                               max(amplicon_df$length + bin_size - 1),
+                               by = bin_size),
+                           1))
   )
 }

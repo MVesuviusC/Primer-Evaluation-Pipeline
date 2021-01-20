@@ -89,14 +89,14 @@ ram (40G+).
 }
 \examples{
 \dontrun{
-test <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
-                   reverse = "TTGCCTCCAGCTTCCCTACA",
-                   output_dir = "testRun",
-                   tax_db = "taxonomy.db",
-                   assay_name = "testRun",
-                   target_taxa = "Blastocystis",
-                   target_level = "genus",
-                   max_amp_len = 2000,
-                   threads = 4)
+blasto_example <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
+                             reverse = "TTGCCTCCAGCTTCCCTACA",
+                             output_dir = "testRun",
+                             tax_db = "taxonomy.db",
+                             assay_name = "blasto_example",
+                             target_taxa = "Blastocystis",
+                             target_level = "genus",
+                             max_amp_len = 2000,
+                             threads = 4)
 }
 }

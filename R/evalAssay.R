@@ -48,15 +48,15 @@
 #'
 #' @examples
 #' \dontrun{
-#' test <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
-#'                    reverse = "TTGCCTCCAGCTTCCCTACA",
-#'                    output_dir = "testRun",
-#'                    tax_db = "taxonomy.db",
-#'                    assay_name = "testRun",
-#'                    target_taxa = "Blastocystis",
-#'                    target_level = "genus",
-#'                    max_amp_len = 2000,
-#'                    threads = 4)
+#' blasto_example <- eval_assay(forward = "TGGTCGCAAGGCTGAAACTT",
+#'                              reverse = "TTGCCTCCAGCTTCCCTACA",
+#'                              output_dir = "testRun",
+#'                              tax_db = "taxonomy.db",
+#'                              assay_name = "blasto_example",
+#'                              target_taxa = "Blastocystis",
+#'                              target_level = "genus",
+#'                              max_amp_len = 2000,
+#'                              threads = 4)
 #' }
 eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
                        blast_exe = "blastn", blast_db = "nt", tax_db,
@@ -210,8 +210,8 @@ eval_assay <- function(forward, reverse, target_taxa, target_level, assay_name,
 
     # Calculate the percent of species with sequence for target locus
     output$summary_table$PercentKnownSpeciesSeqd <-
-      (length(output$species_seqd_at_locus$species) /
-      length(output$known_species$species)) * 100
+      length(output$species_seqd_at_locus$species) /
+      length(output$known_species$species)
 
     # List missed species
     output$missed_species <-

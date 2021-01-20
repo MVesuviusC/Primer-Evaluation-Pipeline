@@ -37,8 +37,8 @@ distance_data <- function(distance, target_taxa, target_level) {
 plot_distance <- function(bsPrimerTree,
                           levels_to_use = c("family", "genus", "species"),
                           target = "On-target") {
-  target_taxa <- bsPrimerTree$summary_table$target_taxa
-  target_level <- bsPrimerTree$summary_table$target_level
+  # target_taxa <- bsPrimerTree$summary_table$target_taxa
+  # target_level <- bsPrimerTree$summary_table$target_level
 
   plot_dist <- function(level_in_use) {
     bsPrimerTree$distance_summary %>%

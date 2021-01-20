@@ -4,13 +4,12 @@ use strict;
 use Getopt::Long;
 use Pod::Usage;
 
-
 ##############################
 # By Matt Cannon
-# Date: 
-# Last modified: 
+# Date:
+# Last modified:
 # Title: countNumInRank.pl
-# Purpose: 
+# Purpose:
 ##############################
 
 ##############################
@@ -22,11 +21,11 @@ my $help;
 my $input;
 
 # i = integer, s = string
-GetOptions ("verbose"           => \$verbose,
-            "help"              => \$help,
-      	    "input=s"           => \$input,
-      )
- or pod2usage(0) && exit;
+GetOptions(
+    "verbose" => \$verbose,
+    "help"    => \$help,
+    "input=s" => \$input,
+) or pod2usage(0) && exit;
 
 pod2usage(1) && exit if ($help);
 
@@ -43,7 +42,7 @@ my %percentSingleHash;
 ##############################
 ### Store all data in a hash to keep unique entries
 
-# need to kick out any blast hit containing "banned words" 
+# need to kick out any blast hit containing "banned words"
 #     (sp., cf., isolate, uncultured, symbiont, unidentified)
 # should pull these in from a file
 
@@ -51,21 +50,24 @@ open my $inputFH, "$input" or die "Could not open input\nWell, crap\n";
 
 my $header = <$inputFH>;
 chomp $header;
-$header =~ s/subject//g; # cut the label to just taxa name
+$header =~ s/subject//g;    # cut the label to just taxa name
 my @labelArray = split "\t", $header;
 
-while (my $input = <$inputFH>){
+while ( my $input = <$inputFH> ) {
     chomp $input;
     my @inputArray = split "\t", $input;
     my $query = $inputArray[0];
-	  # order through species
-	  for(my $level = 7; $level <=  10; $level++) {
-	    if($inputArray[$level] ne "NA") {
-    		# Hash organization: $taxaStorageHash{Taxa level}{query ID}{Taxa name}
-    		# This keeps one copy of each taxa name for each query for each taxa level so I can count later
-		    $taxaStorageHash{$labelArray[$level]}{$query}{$inputArray[$level]} = 1;
-	    }
-	  }
+
+    # order through species
+    for ( my $level = 7 ; $level <= 10 ; $level++ ) {
+        if ( $inputArray[$level] ne "NA" ) {
+
+# Hash organization: $taxaStorageHash{Taxa level}{query ID}{Taxa name}
+# This keeps one copy of each taxa name for each query for each taxa level so I can count later
+            $taxaStorageHash{ $labelArray[$level] }{$query}
+              { $inputArray[$level] } = 1;
+        }
+    }
 }
 
 ##############################
@@ -77,44 +79,46 @@ while (my $input = <$inputFH>){
 #print $longOutputFH "TaxaLevel\tquery\tUniqueTaxaHit\n";
 #print $averageOutputFH "\tMeanNumTaxaHit\n";
 
-for my $taxaLevel (keys %taxaStorageHash) {
+for my $taxaLevel ( keys %taxaStorageHash ) {
     my $taxaCountSum = 0;
-    my $queryNum = 0;
-    for my $queryID (keys %{ $taxaStorageHash{$taxaLevel} }) {
-    	my @keyArray = keys %{ $taxaStorageHash{$taxaLevel}{$queryID} };
-    	my $numTaxa = scalar(@keyArray);
+    my $queryNum     = 0;
+    for my $queryID ( keys %{ $taxaStorageHash{$taxaLevel} } ) {
+        my @keyArray = keys %{ $taxaStorageHash{$taxaLevel}{$queryID} };
+        my $numTaxa  = scalar(@keyArray);
 
-		if($numTaxa == 1) {
-			$percentSingleHash{$taxaLevel}{singleHitCount}++;
-		}
-		$percentSingleHash{$taxaLevel}{levelCount}++;
+        if ( $numTaxa == 1 ) {
+            $percentSingleHash{$taxaLevel}{singleHitCount}++;
+        }
+        $percentSingleHash{$taxaLevel}{levelCount}++;
 
-    	if($numTaxa != 0) { # skip the queries that hit nothing useful
-    	    $queryNum++;
-    	    $taxaCountSum += $numTaxa;
-    	}
+        if ( $numTaxa != 0 ) {    # skip the queries that hit nothing useful
+            $queryNum++;
+            $taxaCountSum += $numTaxa;
+        }
     }
-    if($queryNum != 0) {
-    	print "MeanNumTaxaMatchingSeq_", $taxaLevel, "\t", $taxaCountSum / $queryNum, "\n";
-    } else {
-    	print "MeanNumTaxaMatchingSeq_", $taxaLevel, "\tND\n";
+    if ( $queryNum != 0 ) {
+        print "MeanNumTaxaMatchingSeq_", $taxaLevel, "\t",
+          $taxaCountSum / $queryNum, "\n";
+    }
+    else {
+        print "MeanNumTaxaMatchingSeq_", $taxaLevel, "\tND\n";
     }
 }
 
-for my $taxaLevel (keys %percentSingleHash) {
-	print "PercentSeqsSingleBestMatch_", $taxaLevel, "\t", $percentSingleHash{$taxaLevel}{singleHitCount} / $percentSingleHash{$taxaLevel}{levelCount}, "\n";
+for my $taxaLevel ( keys %percentSingleHash ) {
+    print "PercentSeqsSingleBestMatch_",
+      $taxaLevel, "\t",
+      100 *
+      ( $percentSingleHash{$taxaLevel}{singleHitCount} /
+          $percentSingleHash{$taxaLevel}{levelCount} ), "\n";
 }
-
-
-
-
 
 ##############################
 # POD
 ##############################
 
 #=pod
-    
+
 =head SYNOPSIS
 
 Summary:    
